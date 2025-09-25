@@ -1,0 +1,80 @@
+# Dependencies
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+package-lock.json
+
+# Production builds
+dist/
+build/
+cdk/cdk.out/
+cdk/dist/
+
+# Environment variables
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# AWS CDK
+cdk.out/
+*.d.ts
+*.js.map
+
+# Test results and reports
+test-results/
+playwright-report/
+coverage/
+*.xml
+*.json.log
+
+# IDE files
+.vscode/
+.idea/
+*.swp
+*.swo
+.kiro/
+
+# OS files
+.DS_Store
+Thumbs.db
+*.tmp
+
+# Logs
+logs/
+*.log
+deploy*.log
+
+# Database
+*.db
+*.sqlite
+
+# Temporary files
+tmp/
+temp/
+
+# Backup and archive files
+bkup/
+backup/
+*.bak
+*.backup
+
+# Runtime and cache
+.cache/
+.npm/
+.eslintcache
+
+# CDK specific
+cdk/node_modules/
+cdk/cdk.out/
+cdk/dist/
+
+# Playwright specific
+playwright/.cache/
+test-results/
+playwright-report/
+
+# GitHub Actions artifacts (local)
+.github-actions/

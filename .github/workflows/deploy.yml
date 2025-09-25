@@ -1,0 +1,356 @@
+name: 🚀 Deploy to AWS
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Deployment environment'
+        required: true
+        default: 'production'
+        type: choice
+        options:
+        - production
+        - staging
+        - dev
+      custom_domain:
+        description: 'Custom domain (optional)'
+        required: false
+        type: string
+      hosted_zone_id:
+        description: 'Route53 Hosted Zone ID (required if custom domain provided)'
+        required: false
+        type: string
+
+env:
+  NODE_VERSION: '20'
+  AWS_REGION: 'us-west-2'
+
+jobs:
+  # Job 1: Pre-deployment validation
+  pre-deployment:
+    name: 🔍 Pre-deployment Validation
+    runs-on: ubuntu-latest
+    outputs:
+      environment: ${{ steps.set-env.outputs.environment }}
+      should-deploy: ${{ steps.validation.outputs.should-deploy }}
+    steps:
+      - name: 📥 Checkout code
+        uses: actions/checkout@v4
+
+      - name: 🟢 Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+
+      - name: 📦 Install dependencies
+        run: |
+          npm ci
+          cd cdk && npm ci
+
+      - name: 🎯 Set environment
+        id: set-env
+        run: |
+          if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
+            echo "environment=${{ github.event.inputs.environment }}" >> $GITHUB_OUTPUT
+          else
+            echo "environment=production" >> $GITHUB_OUTPUT
+          fi
+
+      - name: 🧪 Run critical tests
+        run: |
+          echo "🧪 Running critical pre-deployment tests..."
+          
+          # CDK tests
+          cd cdk
+          npm run build
+          npm test
+          npx cdk synth --quiet > /dev/null
+          cd ..
+          
+          # Basic unit tests
+          npm run test:unit
+          
+          echo "✅ Critical tests passed"
+
+      - name: 🔍 Validate deployment configuration
+        id: validation
+        run: |
+          echo "🔍 Validating deployment configuration..."
+          
+          # Check required files
+          test -f simple-task-tracker-standalone.html || (echo "❌ Missing standalone HTML" && exit 1)
+          test -f task-tracker-script.js || (echo "❌ Missing JavaScript file" && exit 1)
+          test -f task-tracker-styles.css || (echo "❌ Missing CSS file" && exit 1)
+          test -f deploy-aws.sh || (echo "❌ Missing deploy script" && exit 1)
+          
+          # Validate custom domain configuration
+          if [[ -n "${{ github.event.inputs.custom_domain }}" ]]; then
+            if [[ -z "${{ github.event.inputs.hosted_zone_id }}" ]]; then
+              echo "❌ Custom domain provided but hosted zone ID is missing"
+              exit 1
+            fi
+            echo "✅ Custom domain configuration valid"
+          fi
+          
+          echo "should-deploy=true" >> $GITHUB_OUTPUT
+          echo "✅ Deployment validation passed"
+
+  # Job 2: Deploy to AWS
+  deploy:
+    name: 🚀 Deploy to ${{ needs.pre-deployment.outputs.environment }}
+    runs-on: ubuntu-latest
+    needs: pre-deployment
+    if: needs.pre-deployment.outputs.should-deploy == 'true'
+    environment: 
+      name: ${{ needs.pre-deployment.outputs.environment }}
+      url: ${{ steps.deploy.outputs.website-url }}
+    steps:
+      - name: 📥 Checkout code
+        uses: actions/checkout@v4
+
+      - name: 🟢 Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+
+      - name: 📦 Install dependencies
+        run: |
+          npm ci
+          cd cdk && npm ci
+
+      - name: ⚙️ Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: 🔧 Install AWS CDK CLI
+        run: npm install -g aws-cdk@latest
+
+      - name: 🏗️ Bootstrap CDK (if needed)
+        run: |
+          cd cdk
+          # Check if bootstrap is needed
+          if ! aws cloudformation describe-stacks --stack-name CDKToolkit --region ${{ env.AWS_REGION }} >/dev/null 2>&1; then
+            echo "🏗️ Bootstrapping CDK..."
+            cdk bootstrap aws://${{ secrets.AWS_ACCOUNT_ID }}/${{ env.AWS_REGION }}
+          else
+            echo "✅ CDK already bootstrapped"
+          fi
+
+      - name: 🚀 Deploy to AWS
+        id: deploy
+        run: |
+          cd cdk
+          
+          # Build deployment command
+          DEPLOY_CMD="cdk deploy --require-approval never"
+          DEPLOY_CMD="$DEPLOY_CMD -c environment=${{ needs.pre-deployment.outputs.environment }}"
+          
+          # Add custom domain if provided
+          if [[ -n "${{ github.event.inputs.custom_domain }}" ]]; then
+            DEPLOY_CMD="$DEPLOY_CMD -c domainName=${{ github.event.inputs.custom_domain }}"
+            DEPLOY_CMD="$DEPLOY_CMD -c hostedZoneId=${{ github.event.inputs.hosted_zone_id }}"
+          fi
+          
+          echo "🚀 Executing: $DEPLOY_CMD"
+          eval $DEPLOY_CMD
+          
+          # Get deployment outputs
+          WEBSITE_URL=$(aws cloudformation describe-stacks \
+            --stack-name SimpleTaskTrackerStack \
+            --region ${{ env.AWS_REGION }} \
+            --query 'Stacks[0].Outputs[?OutputKey==`WebsiteURL`].OutputValue' \
+            --output text 2>/dev/null || echo "")
+          
+          DISTRIBUTION_ID=$(aws cloudformation describe-stacks \
+            --stack-name SimpleTaskTrackerStack \
+            --region ${{ env.AWS_REGION }} \
+            --query 'Stacks[0].Outputs[?OutputKey==`DistributionId`].OutputValue' \
+            --output text 2>/dev/null || echo "")
+          
+          echo "website-url=$WEBSITE_URL" >> $GITHUB_OUTPUT
+          echo "distribution-id=$DISTRIBUTION_ID" >> $GITHUB_OUTPUT
+          
+          echo "✅ Deployment completed successfully!"
+          echo "🌐 Website URL: $WEBSITE_URL"
+          echo "🔗 Distribution ID: $DISTRIBUTION_ID"
+
+      - name: 📊 Update deployment summary
+        run: |
+          echo "# 🚀 Deployment Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| Property | Value |" >> $GITHUB_STEP_SUMMARY
+          echo "|----------|-------|" >> $GITHUB_STEP_SUMMARY
+          echo "| Environment | ${{ needs.pre-deployment.outputs.environment }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Website URL | ${{ steps.deploy.outputs.website-url }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Distribution ID | ${{ steps.deploy.outputs.distribution-id }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| AWS Region | ${{ env.AWS_REGION }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Deployment Time | $(date -u) |" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          
+          if [[ -n "${{ github.event.inputs.custom_domain }}" ]]; then
+            echo "| Custom Domain | ${{ github.event.inputs.custom_domain }} |" >> $GITHUB_STEP_SUMMARY
+          fi
+
+  # Job 3: Post-deployment validation
+  post-deployment:
+    name: ✅ Post-deployment Validation
+    runs-on: ubuntu-latest
+    needs: [pre-deployment, deploy]
+    if: always() && needs.deploy.result == 'success'
+    steps:
+      - name: 📥 Checkout code
+        uses: actions/checkout@v4
+
+      - name: 🟢 Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+
+      - name: 📦 Install dependencies
+        run: npm ci
+
+      - name: 🎭 Install Playwright browsers
+        run: npx playwright install --with-deps
+
+      - name: ⏳ Wait for CloudFront deployment
+        run: |
+          echo "⏳ Waiting for CloudFront deployment to complete..."
+          sleep 60  # Give CloudFront some time to deploy
+          
+          WEBSITE_URL="${{ needs.deploy.outputs.website-url }}"
+          if [[ -n "$WEBSITE_URL" ]]; then
+            echo "🔍 Testing website availability: $WEBSITE_URL"
+            
+            # Try up to 10 times with 30 second intervals
+            for i in {1..10}; do
+              if curl -f -s "$WEBSITE_URL" > /dev/null; then
+                echo "✅ Website is accessible (attempt $i)"
+                break
+              else
+                echo "⏳ Website not ready yet (attempt $i/10), waiting 30 seconds..."
+                sleep 30
+              fi
+            done
+          fi
+
+      - name: 🧪 Run smoke tests
+        env:
+          WEBSITE_URL: ${{ needs.deploy.outputs.website-url }}
+        run: |
+          if [[ -n "$WEBSITE_URL" ]]; then
+            echo "🧪 Running smoke tests against: $WEBSITE_URL"
+            
+            # Basic HTTP test
+            HTTP_STATUS=$(curl -s -o /dev/null -w "%{http_code}" "$WEBSITE_URL")
+            if [[ "$HTTP_STATUS" == "200" ]]; then
+              echo "✅ HTTP status check passed (200)"
+            else
+              echo "❌ HTTP status check failed ($HTTP_STATUS)"
+              exit 1
+            fi
+            
+            # Content test
+            if curl -s "$WEBSITE_URL" | grep -q "Simple Task Tracker"; then
+              echo "✅ Content verification passed"
+            else
+              echo "❌ Content verification failed"
+              exit 1
+            fi
+            
+            # Security headers test
+            SECURITY_HEADERS=$(curl -s -I "$WEBSITE_URL" | grep -i "x-frame-options\|x-content-type-options\|strict-transport-security")
+            if [[ -n "$SECURITY_HEADERS" ]]; then
+              echo "✅ Security headers present"
+            else
+              echo "⚠️ Some security headers missing (non-blocking)"
+            fi
+            
+            echo "✅ All smoke tests passed!"
+          else
+            echo "⚠️ No website URL available, skipping smoke tests"
+          fi
+
+      - name: 🎭 Run production Playwright tests
+        env:
+          WEBSITE_URL: ${{ needs.deploy.outputs.website-url }}
+        run: |
+          if [[ -n "$WEBSITE_URL" ]]; then
+            echo "🎭 Running Playwright tests against production..."
+            
+            # Create a temporary Playwright config for production testing
+            cat > playwright.prod.config.js << EOF
+            const { defineConfig } = require('@playwright/test');
+            
+            module.exports = defineConfig({
+              testDir: './playwright-tests',
+              timeout: 30000,
+              use: {
+                baseURL: '$WEBSITE_URL',
+                headless: true,
+                screenshot: 'only-on-failure',
+                video: 'retain-on-failure',
+              },
+              projects: [
+                {
+                  name: 'chromium',
+                  use: { ...require('@playwright/test').devices['Desktop Chrome'] },
+                },
+              ],
+            });
+            EOF
+            
+            # Run a subset of critical tests
+            npx playwright test --config=playwright.prod.config.js --grep="@smoke|@critical" || echo "⚠️ Some production tests failed (non-blocking)"
+          else
+            echo "⚠️ No website URL available, skipping Playwright tests"
+          fi
+
+      - name: 📊 Upload production test results
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: production-test-results
+          path: |
+            test-results/
+            playwright-report/
+          retention-days: 30
+
+  # Job 4: Notification
+  notify:
+    name: 📢 Deployment Notification
+    runs-on: ubuntu-latest
+    needs: [pre-deployment, deploy, post-deployment]
+    if: always()
+    steps:
+      - name: 📢 Create deployment notification
+        run: |
+          if [[ "${{ needs.deploy.result }}" == "success" ]]; then
+            echo "# 🎉 Deployment Successful!" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "✅ Simple Task Tracker has been successfully deployed to ${{ needs.pre-deployment.outputs.environment }}" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "🌐 **Website URL**: ${{ needs.deploy.outputs.website-url }}" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "🔗 **Distribution ID**: ${{ needs.deploy.outputs.distribution-id }}" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            
+            if [[ "${{ needs.post-deployment.result }}" == "success" ]]; then
+              echo "✅ **Post-deployment validation**: Passed" >> $GITHUB_STEP_SUMMARY
+            else
+              echo "⚠️ **Post-deployment validation**: Some issues detected" >> $GITHUB_STEP_SUMMARY
+            fi
+          else
+            echo "# ❌ Deployment Failed" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "❌ The deployment to ${{ needs.pre-deployment.outputs.environment }} failed." >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "Please check the logs and try again." >> $GITHUB_STEP_SUMMARY
+          fi

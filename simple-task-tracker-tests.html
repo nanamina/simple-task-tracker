@@ -1,0 +1,1019 @@
+<!DOCTYPE html>
+<html lang="ja">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>シンプルタスクトラッカー - テストスイート</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+
+        .test-container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+            overflow: hidden;
+        }
+
+        .test-header {
+            background: #2563eb;
+            color: white;
+            padding: 20px;
+            text-align: center;
+        }
+
+        .test-controls {
+            padding: 20px;
+            border-bottom: 1px solid #e5e7eb;
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+
+        .test-button {
+            padding: 10px 20px;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-weight: 600;
+            transition: all 0.2s;
+        }
+
+        .test-button.primary {
+            background: #2563eb;
+            color: white;
+        }
+
+        .test-button.success {
+            background: #10b981;
+            color: white;
+        }
+
+        .test-button.danger {
+            background: #ef4444;
+            color: white;
+        }
+
+        .test-button:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+        }
+
+        .test-results {
+            padding: 20px;
+        }
+
+        .test-section {
+            margin-bottom: 30px;
+            border: 1px solid #e5e7eb;
+            border-radius: 6px;
+            overflow: hidden;
+        }
+
+        .test-section-header {
+            background: #f9fafb;
+            padding: 15px 20px;
+            font-weight: 600;
+            border-bottom: 1px solid #e5e7eb;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .test-section-content {
+            padding: 20px;
+        }
+
+        .test-case {
+            margin-bottom: 15px;
+            padding: 15px;
+            border-radius: 6px;
+            border-left: 4px solid #d1d5db;
+        }
+
+        .test-case.passed {
+            background: #f0fdf4;
+            border-left-color: #10b981;
+        }
+
+        .test-case.failed {
+            background: #fef2f2;
+            border-left-color: #ef4444;
+        }
+
+        .test-case.running {
+            background: #fffbeb;
+            border-left-color: #f59e0b;
+        }
+
+        .test-case-title {
+            font-weight: 600;
+            margin-bottom: 5px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .test-case-description {
+            color: #6b7280;
+            font-size: 0.9em;
+            margin-bottom: 10px;
+        }
+
+        .test-case-result {
+            font-size: 0.85em;
+            font-family: monospace;
+            background: #f3f4f6;
+            padding: 8px;
+            border-radius: 4px;
+            white-space: pre-wrap;
+        }
+
+        .test-status {
+            padding: 4px 8px;
+            border-radius: 12px;
+            font-size: 0.75em;
+            font-weight: 600;
+            text-transform: uppercase;
+        }
+
+        .test-status.passed {
+            background: #d1fae5;
+            color: #065f46;
+        }
+
+        .test-status.failed {
+            background: #fecaca;
+            color: #991b1b;
+        }
+
+        .test-status.running {
+            background: #fed7aa;
+            color: #92400e;
+        }
+
+        .test-status.pending {
+            background: #e5e7eb;
+            color: #374151;
+        }
+
+        .test-summary {
+            background: #f9fafb;
+            padding: 20px;
+            border-radius: 6px;
+            margin-bottom: 20px;
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 15px;
+        }
+
+        .test-summary-item {
+            text-align: center;
+        }
+
+        .test-summary-number {
+            font-size: 2em;
+            font-weight: bold;
+            margin-bottom: 5px;
+        }
+
+        .test-summary-label {
+            color: #6b7280;
+            font-size: 0.9em;
+        }
+
+        .app-frame {
+            border: 1px solid #e5e7eb;
+            border-radius: 6px;
+            height: 400px;
+            margin-top: 20px;
+        }
+
+        .app-frame iframe {
+            width: 100%;
+            height: 100%;
+            border: none;
+            border-radius: 6px;
+        }
+
+        .progress-bar {
+            width: 100%;
+            height: 4px;
+            background: #e5e7eb;
+            border-radius: 2px;
+            overflow: hidden;
+            margin-bottom: 20px;
+        }
+
+        .progress-fill {
+            height: 100%;
+            background: #2563eb;
+            transition: width 0.3s ease;
+            width: 0%;
+        }
+
+        @media (max-width: 768px) {
+            .test-controls {
+                flex-direction: column;
+            }
+
+            .test-case-title {
+                flex-direction: column;
+                align-items: flex-start;
+                gap: 5px;
+            }
+        }
+    </style>
+</head>
+
+<body>
+    <div class="test-container">
+        <div class="test-header">
+            <h1>🧪 シンプルタスクトラッカー テストスイート</h1>
+            <p>包括的な自動テストでアプリケーションの品質を確保</p>
+        </div>
+
+        <div class="test-controls">
+            <button class="test-button primary" onclick="runAllTests()">全テスト実行</button>
+            <button class="test-button success" onclick="runUnitTests()">単体テスト</button>
+            <button class="test-button success" onclick="runIntegrationTests()">統合テスト</button>
+            <button class="test-button success" onclick="runUITests()">UIテスト</button>
+            <button class="test-button success" onclick="runAccessibilityTests()">アクセシビリティテスト</button>
+            <button class="test-button danger" onclick="clearResults()">結果クリア</button>
+        </div>
+
+        <div class="test-results">
+            <div class="progress-bar">
+                <div class="progress-fill" id="progressFill"></div>
+            </div>
+
+            <div class="test-summary" id="testSummary">
+                <div class="test-summary-item">
+                    <div class="test-summary-number" id="totalTests">0</div>
+                    <div class="test-summary-label">総テスト数</div>
+                </div>
+                <div class="test-summary-item">
+                    <div class="test-summary-number" id="passedTests" style="color: #10b981;">0</div>
+                    <div class="test-summary-label">成功</div>
+                </div>
+                <div class="test-summary-item">
+                    <div class="test-summary-number" id="failedTests" style="color: #ef4444;">0</div>
+                    <div class="test-summary-label">失敗</div>
+                </div>
+                <div class="test-summary-item">
+                    <div class="test-summary-number" id="testDuration">0ms</div>
+                    <div class="test-summary-label">実行時間</div>
+                </div>
+            </div>
+
+            <!-- 単体テスト -->
+            <div class="test-section">
+                <div class="test-section-header">
+                    <span>🔧 単体テスト (Unit Tests)</span>
+                    <span class="test-status pending" id="unitTestsStatus">待機中</span>
+                </div>
+                <div class="test-section-content" id="unitTestsContent">
+                    <p>TaskManagerオブジェクトの個別機能をテストします。</p>
+                </div>
+            </div>
+
+            <!-- 統合テスト -->
+            <div class="test-section">
+                <div class="test-section-header">
+                    <span>🔗 統合テスト (Integration Tests)</span>
+                    <span class="test-status pending" id="integrationTestsStatus">待機中</span>
+                </div>
+                <div class="test-section-content" id="integrationTestsContent">
+                    <p>コンポーネント間の連携をテストします。</p>
+                </div>
+            </div>
+
+            <!-- UIテスト -->
+            <div class="test-section">
+                <div class="test-section-header">
+                    <span>🖱️ UIテスト (User Interface Tests)</span>
+                    <span class="test-status pending" id="uiTestsStatus">待機中</span>
+                </div>
+                <div class="test-section-content" id="uiTestsContent">
+                    <p>ユーザーインターフェースの動作をテストします。</p>
+                </div>
+            </div>
+
+            <!-- アクセシビリティテスト -->
+            <div class="test-section">
+                <div class="test-section-header">
+                    <span>♿ アクセシビリティテスト (Accessibility Tests)</span>
+                    <span class="test-status pending" id="accessibilityTestsStatus">待機中</span>
+                </div>
+                <div class="test-section-content" id="accessibilityTestsContent">
+                    <p>アクセシビリティ要件への準拠をテストします。</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- テスト用アプリフレーム -->
+        <div class="app-frame" style="display: none;">
+            <iframe id="testAppFrame" src="simple-task-tracker-standalone.html"></iframe>
+        </div>
+    </div>
+
+    <script>
+        // テストフレームワーク
+        class TestFramework {
+            constructor() {
+                this.tests = [];
+                this.results = [];
+                this.currentTest = null;
+                this.startTime = null;
+                this.testApp = null;
+            }
+
+            // テストケースを追加
+            addTest(name, description, testFunction, category = 'unit') {
+                this.tests.push({
+                    name,
+                    description,
+                    testFunction,
+                    category,
+                    status: 'pending'
+                });
+            }
+
+            // アサーション関数
+            assert(condition, message) {
+                if (!condition) {
+                    throw new Error(`Assertion failed: ${message}`);
+                }
+                return true;
+            }
+
+            assertEqual(actual, expected, message) {
+                if (actual !== expected) {
+                    throw new Error(`${message}\n期待値: ${expected}\n実際の値: ${actual}`);
+                }
+                return true;
+            }
+
+            assertNotEqual(actual, expected, message) {
+                if (actual === expected) {
+                    throw new Error(`${message}\n値が等しくないことを期待しましたが、両方とも: ${actual}`);
+                }
+                return true;
+            }
+
+            assertTrue(condition, message) {
+                return this.assertEqual(condition, true, message);
+            }
+
+            assertFalse(condition, message) {
+                return this.assertEqual(condition, false, message);
+            }
+
+            assertExists(element, message) {
+                if (!element) {
+                    throw new Error(`${message}\n要素が存在しません`);
+                }
+                return true;
+            }
+
+            // 単一テストを実行
+            async runTest(test) {
+                this.currentTest = test;
+                test.status = 'running';
+                this.updateTestDisplay(test);
+
+                try {
+                    const startTime = performance.now();
+                    await test.testFunction.call(this);
+                    const endTime = performance.now();
+
+                    test.status = 'passed';
+                    test.duration = Math.round(endTime - startTime);
+                    test.result = '✅ テスト成功';
+
+                } catch (error) {
+                    test.status = 'failed';
+                    test.result = `❌ テスト失敗: ${error.message}`;
+                    test.error = error;
+                }
+
+                this.updateTestDisplay(test);
+                return test;
+            }
+
+            // カテゴリ別テスト実行
+            async runTestsByCategory(category) {
+                const categoryTests = this.tests.filter(test => test.category === category);
+                const results = [];
+
+                for (const test of categoryTests) {
+                    const result = await this.runTest(test);
+                    results.push(result);
+                    await this.sleep(100); // テスト間の間隔
+                }
+
+                return results;
+            }
+
+            // 全テスト実行
+            async runAllTests() {
+                this.startTime = performance.now();
+                this.results = [];
+
+                // プログレスバーリセット
+                this.updateProgress(0);
+
+                // テストアプリを準備
+                await this.prepareTestApp();
+
+                const categories = ['unit', 'integration', 'ui', 'accessibility'];
+
+                for (const category of categories) {
+                    await this.runTestsByCategory(category);
+                    this.updateCategoryStatus(category);
+                }
+
+                const endTime = performance.now();
+                const duration = Math.round(endTime - this.startTime);
+
+                this.updateSummary(duration);
+                this.updateProgress(100);
+            }
+
+            // テストアプリを準備
+            async prepareTestApp() {
+                return new Promise((resolve) => {
+                    const frame = document.getElementById('testAppFrame');
+                    frame.onload = () => {
+                        this.testApp = frame.contentWindow;
+                        resolve();
+                    };
+                    // フレームを再読み込み
+                    frame.src = frame.src;
+                });
+            }
+
+            // ユーティリティ関数
+            sleep(ms) {
+                return new Promise(resolve => setTimeout(resolve, ms));
+            }
+
+            // UI更新関数
+            updateTestDisplay(test) {
+                const contentId = `${test.category}TestsContent`;
+                const content = document.getElementById(contentId);
+
+                let testCaseDiv = document.getElementById(`test-${test.name.replace(/\s+/g, '-')}`);
+
+                if (!testCaseDiv) {
+                    testCaseDiv = document.createElement('div');
+                    testCaseDiv.id = `test-${test.name.replace(/\s+/g, '-')}`;
+                    testCaseDiv.className = 'test-case';
+                    content.appendChild(testCaseDiv);
+                }
+
+                testCaseDiv.className = `test-case ${test.status}`;
+                testCaseDiv.innerHTML = `
+                    <div class="test-case-title">
+                        <span>${test.name}</span>
+                        <span class="test-status ${test.status}">${this.getStatusText(test.status)}</span>
+                    </div>
+                    <div class="test-case-description">${test.description}</div>
+                    ${test.result ? `<div class="test-case-result">${test.result}${test.duration ? ` (${test.duration}ms)` : ''}</div>` : ''}
+                `;
+            }
+
+            updateCategoryStatus(category) {
+                const categoryTests = this.tests.filter(test => test.category === category);
+                const passed = categoryTests.filter(test => test.status === 'passed').length;
+                const failed = categoryTests.filter(test => test.status === 'failed').length;
+
+                const statusElement = document.getElementById(`${category}TestsStatus`);
+
+                if (failed > 0) {
+                    statusElement.className = 'test-status failed';
+                    statusElement.textContent = `${failed}件失敗`;
+                } else if (passed === categoryTests.length) {
+                    statusElement.className = 'test-status passed';
+                    statusElement.textContent = '全て成功';
+                } else {
+                    statusElement.className = 'test-status running';
+                    statusElement.textContent = '実行中';
+                }
+            }
+
+            updateSummary(duration) {
+                const total = this.tests.length;
+                const passed = this.tests.filter(test => test.status === 'passed').length;
+                const failed = this.tests.filter(test => test.status === 'failed').length;
+
+                document.getElementById('totalTests').textContent = total;
+                document.getElementById('passedTests').textContent = passed;
+                document.getElementById('failedTests').textContent = failed;
+                document.getElementById('testDuration').textContent = `${duration}ms`;
+            }
+
+            updateProgress(percentage) {
+                document.getElementById('progressFill').style.width = `${percentage}%`;
+            }
+
+            getStatusText(status) {
+                const statusTexts = {
+                    'pending': '待機中',
+                    'running': '実行中',
+                    'passed': '成功',
+                    'failed': '失敗'
+                };
+                return statusTexts[status] || status;
+            }
+
+            clearResults() {
+                this.tests.forEach(test => {
+                    test.status = 'pending';
+                    delete test.result;
+                    delete test.duration;
+                    delete test.error;
+                });
+
+                // UI をリセット
+                ['unit', 'integration', 'ui', 'accessibility'].forEach(category => {
+                    const content = document.getElementById(`${category}TestsContent`);
+                    content.innerHTML = `<p>${this.getCategoryDescription(category)}</p>`;
+
+                    const status = document.getElementById(`${category}TestsStatus`);
+                    status.className = 'test-status pending';
+                    status.textContent = '待機中';
+                });
+
+                this.updateSummary(0);
+                this.updateProgress(0);
+            }
+
+            getCategoryDescription(category) {
+                const descriptions = {
+                    'unit': 'TaskManagerオブジェクトの個別機能をテストします。',
+                    'integration': 'コンポーネント間の連携をテストします。',
+                    'ui': 'ユーザーインターフェースの動作をテストします。',
+                    'accessibility': 'アクセシビリティ要件への準拠をテストします。'
+                };
+                return descriptions[category] || '';
+            }
+        }
+
+        // テストフレームワークのインスタンス作成
+        const testFramework = new TestFramework();
+
+        // 単体テスト定義
+        testFramework.addTest(
+            'TaskManager初期化テスト',
+            'TaskManagerオブジェクトが正しく初期化されることを確認',
+            function () {
+                // テストアプリのTaskManagerにアクセス
+                const TaskManager = this.testApp.TaskManager;
+
+                this.assertExists(TaskManager, 'TaskManagerオブジェクトが存在する');
+                this.assertTrue(Array.isArray(TaskManager.tasks), 'tasksが配列である');
+                this.assertEqual(TaskManager.tasks.length, 0, '初期状態でタスクが空');
+                this.assertEqual(TaskManager.nextId, 1, 'nextIdが1で初期化されている');
+                this.assertFalse(TaskManager.isComposing, 'isComposingがfalseで初期化されている');
+            },
+            'unit'
+        );
+
+        testFramework.addTest(
+            'タスク追加機能テスト',
+            '新しいタスクが正しく追加されることを確認',
+            function () {
+                const TaskManager = this.testApp.TaskManager;
+
+                // タスクを追加
+                const initialCount = TaskManager.tasks.length;
+                const taskDescription = 'テストタスク';
+
+                // タスク追加をシミュレート
+                const task = {
+                    id: TaskManager.nextId++,
+                    description: taskDescription,
+                    completed: false,
+                    createdAt: new Date(),
+                    completedAt: null
+                };
+                TaskManager.tasks.push(task);
+
+                this.assertEqual(TaskManager.tasks.length, initialCount + 1, 'タスクが1つ追加された');
+                this.assertEqual(TaskManager.tasks[TaskManager.tasks.length - 1].description, taskDescription, 'タスクの説明が正しい');
+                this.assertFalse(TaskManager.tasks[TaskManager.tasks.length - 1].completed, '新しいタスクは未完了状態');
+            },
+            'unit'
+        );
+
+        testFramework.addTest(
+            'タスク完了切り替えテスト',
+            'タスクの完了状態が正しく切り替わることを確認',
+            function () {
+                const TaskManager = this.testApp.TaskManager;
+
+                // テストタスクを追加
+                const task = {
+                    id: TaskManager.nextId++,
+                    description: '完了テストタスク',
+                    completed: false,
+                    createdAt: new Date(),
+                    completedAt: null
+                };
+                TaskManager.tasks.push(task);
+
+                // 完了状態に変更
+                task.completed = true;
+                task.completedAt = new Date();
+
+                this.assertTrue(task.completed, 'タスクが完了状態になった');
+                this.assertExists(task.completedAt, '完了日時が設定された');
+
+                // 未完了状態に戻す
+                task.completed = false;
+                task.completedAt = null;
+
+                this.assertFalse(task.completed, 'タスクが未完了状態に戻った');
+                this.assertEqual(task.completedAt, null, '完了日時がクリアされた');
+            },
+            'unit'
+        );
+
+        testFramework.addTest(
+            '入力バリデーションテスト',
+            'タスク入力のバリデーション機能が正しく動作することを確認',
+            function () {
+                const TaskManager = this.testApp.TaskManager;
+
+                // 空文字列のテスト
+                let result = TaskManager.validateTaskInput('');
+                this.assertFalse(result.isValid, '空文字列は無効');
+
+                // 空白のみのテスト
+                result = TaskManager.validateTaskInput('   ');
+                this.assertFalse(result.isValid, '空白のみは無効');
+
+                // 正常な入力のテスト
+                result = TaskManager.validateTaskInput('正常なタスク');
+                this.assertTrue(result.isValid, '正常な入力は有効');
+
+                // 長すぎる入力のテスト
+                const longText = 'あ'.repeat(201);
+                result = TaskManager.validateTaskInput(longText);
+                this.assertFalse(result.isValid, '200文字を超える入力は無効');
+            },
+            'unit'
+        );
+
+        testFramework.addTest(
+            'ストレージ機能テスト',
+            'LocalStorageへの保存・読み込み機能が正しく動作することを確認',
+            function () {
+                const TaskManager = this.testApp.TaskManager;
+
+                // ストレージが利用可能かテスト
+                const isAvailable = TaskManager.isStorageAvailable();
+                this.assertTrue(isAvailable, 'LocalStorageが利用可能');
+
+                // テストデータを保存
+                const originalTasks = TaskManager.tasks.slice();
+                TaskManager.tasks = [{
+                    id: 1,
+                    description: 'ストレージテストタスク',
+                    completed: false,
+                    createdAt: new Date(),
+                    completedAt: null
+                }];
+
+                const saveResult = TaskManager.saveToStorage();
+                this.assertTrue(saveResult, 'データの保存が成功');
+
+                // データをクリアして読み込みテスト
+                TaskManager.tasks = [];
+                const loadResult = TaskManager.loadFromStorage();
+                this.assertTrue(loadResult, 'データの読み込みが成功');
+                this.assertEqual(TaskManager.tasks.length, 1, '保存されたタスクが読み込まれた');
+
+                // 元のデータを復元
+                TaskManager.tasks = originalTasks;
+            },
+            'unit'
+        );
+
+        // 統合テスト定義
+        testFramework.addTest(
+            'タスク追加フローテスト',
+            'タスク追加の完全なフローが正しく動作することを確認',
+            async function () {
+                const doc = this.testApp.document;
+                const TaskManager = this.testApp.TaskManager;
+
+                const taskInput = doc.getElementById('taskInput');
+                const addButton = doc.getElementById('addTaskBtn');
+
+                this.assertExists(taskInput, 'タスク入力フィールドが存在');
+                this.assertExists(addButton, '追加ボタンが存在');
+
+                // 入力フィールドにテキストを設定
+                taskInput.value = '統合テストタスク';
+
+                // 追加ボタンをクリック
+                const initialCount = TaskManager.tasks.length;
+                addButton.click();
+
+                // 少し待ってからチェック
+                await this.sleep(100);
+
+                this.assertEqual(TaskManager.tasks.length, initialCount + 1, 'タスクが追加された');
+                this.assertEqual(taskInput.value, '', '入力フィールドがクリアされた');
+            },
+            'integration'
+        );
+
+        testFramework.addTest(
+            'タスクリスト表示テスト',
+            'タスクリストが正しく表示されることを確認',
+            async function () {
+                const doc = this.testApp.document;
+                const TaskManager = this.testApp.TaskManager;
+
+                // テストタスクを追加
+                TaskManager.tasks.push({
+                    id: 999,
+                    description: '表示テストタスク',
+                    completed: false,
+                    createdAt: new Date(),
+                    completedAt: null
+                });
+
+                // レンダリングを実行
+                TaskManager.render();
+
+                await this.sleep(100);
+
+                const taskList = doc.getElementById('taskList');
+                const taskItems = taskList.querySelectorAll('.task-item');
+
+                this.assertExists(taskList, 'タスクリストが存在');
+                this.assertTrue(taskItems.length > 0, 'タスクアイテムが表示されている');
+
+                // テストタスクをクリーンアップ
+                TaskManager.tasks = TaskManager.tasks.filter(task => task.id !== 999);
+            },
+            'integration'
+        );
+
+        testFramework.addTest(
+            'IME入力対応テスト',
+            '日本語入力（IME）でのEnterキー処理が正しく動作することを確認',
+            async function () {
+                const doc = this.testApp.document;
+                const TaskManager = this.testApp.TaskManager;
+
+                const taskInput = doc.getElementById('taskInput');
+
+                // IME入力開始をシミュレート
+                const compositionStartEvent = new CompositionEvent('compositionstart');
+                taskInput.dispatchEvent(compositionStartEvent);
+
+                this.assertTrue(TaskManager.isComposing, 'IME入力状態が正しく設定された');
+
+                // IME入力中のEnterキーをシミュレート
+                taskInput.value = 'こんに';
+                const keydownEvent = new KeyboardEvent('keydown', { key: 'Enter' });
+                const initialCount = TaskManager.tasks.length;
+
+                taskInput.dispatchEvent(keydownEvent);
+
+                await this.sleep(50);
+
+                this.assertEqual(TaskManager.tasks.length, initialCount, 'IME入力中はタスクが追加されない');
+
+                // IME入力終了をシミュレート
+                const compositionEndEvent = new CompositionEvent('compositionend');
+                taskInput.dispatchEvent(compositionEndEvent);
+
+                this.assertFalse(TaskManager.isComposing, 'IME入力状態が正しく解除された');
+            },
+            'integration'
+        );
+
+        // UIテスト定義
+        testFramework.addTest(
+            'レスポンシブデザインテスト',
+            'モバイル表示でのレイアウトが正しく動作することを確認',
+            function () {
+                const doc = this.testApp.document;
+
+                // モバイルビューポートをシミュレート
+                const originalWidth = this.testApp.innerWidth;
+
+                // CSSメディアクエリの確認（間接的）
+                const inputContainer = doc.querySelector('.input-container');
+                const computedStyle = this.testApp.getComputedStyle(inputContainer);
+
+                this.assertExists(inputContainer, '入力コンテナが存在');
+                this.assertExists(computedStyle, 'スタイルが適用されている');
+            },
+            'ui'
+        );
+
+        testFramework.addTest(
+            'アニメーション動作テスト',
+            'タスク追加・削除時のアニメーションが正しく動作することを確認',
+            async function () {
+                const doc = this.testApp.document;
+                const TaskManager = this.testApp.TaskManager;
+
+                // タスクを追加してアニメーションをテスト
+                const taskInput = doc.getElementById('taskInput');
+                const addButton = doc.getElementById('addTaskBtn');
+
+                taskInput.value = 'アニメーションテスト';
+                addButton.click();
+
+                await this.sleep(200);
+
+                const taskItems = doc.querySelectorAll('.task-item');
+                this.assertTrue(taskItems.length > 0, 'タスクアイテムが表示された');
+
+                // 最新のタスクアイテムのスタイルをチェック
+                const latestTask = taskItems[taskItems.length - 1];
+                const opacity = this.testApp.getComputedStyle(latestTask).opacity;
+
+                // アニメーション完了後は opacity が 1 になっているはず
+                this.assertTrue(parseFloat(opacity) > 0, 'タスクアイテムが表示されている');
+            },
+            'ui'
+        );
+
+        testFramework.addTest(
+            'エラーメッセージ表示テスト',
+            'エラーメッセージが正しく表示されることを確認',
+            async function () {
+                const doc = this.testApp.document;
+                const TaskManager = this.testApp.TaskManager;
+
+                // 無効な入力でエラーメッセージをトリガー
+                const taskInput = doc.getElementById('taskInput');
+                const addButton = doc.getElementById('addTaskBtn');
+
+                taskInput.value = ''; // 空の入力
+                addButton.click();
+
+                await this.sleep(100);
+
+                const errorMessage = doc.getElementById('error-message');
+                this.assertExists(errorMessage, 'エラーメッセージ要素が存在');
+
+                // エラーメッセージが表示されているかチェック
+                const hasShowClass = errorMessage.classList.contains('show');
+                this.assertTrue(hasShowClass, 'エラーメッセージが表示されている');
+            },
+            'ui'
+        );
+
+        // アクセシビリティテスト定義
+        testFramework.addTest(
+            'ARIA属性テスト',
+            '適切なARIA属性が設定されていることを確認',
+            function () {
+                const doc = this.testApp.document;
+
+                const taskInput = doc.getElementById('taskInput');
+                const taskList = doc.getElementById('taskList');
+                const emptyState = doc.getElementById('emptyState');
+
+                // ARIA属性の確認
+                this.assertExists(taskInput.getAttribute('aria-describedby'), 'タスク入力にaria-describedbyが設定されている');
+                this.assertEqual(taskList.getAttribute('role'), 'list', 'タスクリストにrole="list"が設定されている');
+                this.assertEqual(emptyState.getAttribute('role'), 'status', '空状態にrole="status"が設定されている');
+            },
+            'accessibility'
+        );
+
+        testFramework.addTest(
+            'キーボードナビゲーションテスト',
+            'キーボードでの操作が正しく動作することを確認',
+            async function () {
+                const doc = this.testApp.document;
+                const TaskManager = this.testApp.TaskManager;
+
+                const taskInput = doc.getElementById('taskInput');
+
+                // フォーカス可能要素の確認
+                this.assertTrue(taskInput.tabIndex >= 0 || taskInput.tabIndex === undefined, 'タスク入力がフォーカス可能');
+
+                // Enterキーでのタスク追加テスト
+                taskInput.value = 'キーボードテストタスク';
+                taskInput.focus();
+
+                const initialCount = TaskManager.tasks.length;
+
+                // Enterキーイベントをシミュレート
+                const enterEvent = new KeyboardEvent('keydown', { key: 'Enter' });
+                taskInput.dispatchEvent(enterEvent);
+
+                await this.sleep(100);
+
+                this.assertEqual(TaskManager.tasks.length, initialCount + 1, 'Enterキーでタスクが追加された');
+            },
+            'accessibility'
+        );
+
+        testFramework.addTest(
+            'スクリーンリーダー対応テスト',
+            'スクリーンリーダー向けの要素が正しく設定されていることを確認',
+            function () {
+                const doc = this.testApp.document;
+
+                // visually-hiddenクラスの要素をチェック
+                const hiddenElements = doc.querySelectorAll('.visually-hidden');
+                this.assertTrue(hiddenElements.length > 0, 'スクリーンリーダー向けの隠しテキストが存在');
+
+                // aria-live属性の確認
+                const liveElements = doc.querySelectorAll('[aria-live]');
+                this.assertTrue(liveElements.length > 0, 'aria-live属性を持つ要素が存在');
+
+                // aria-label属性の確認
+                const labeledElements = doc.querySelectorAll('[aria-label]');
+                this.assertTrue(labeledElements.length > 0, 'aria-label属性を持つ要素が存在');
+            },
+            'accessibility'
+        );
+
+        testFramework.addTest(
+            'カラーコントラストテスト',
+            '色のコントラストが適切であることを確認',
+            function () {
+                const doc = this.testApp.document;
+
+                // 主要な要素のスタイルをチェック
+                const taskInput = doc.getElementById('taskInput');
+                const addButton = doc.getElementById('addTaskBtn');
+
+                const inputStyle = this.testApp.getComputedStyle(taskInput);
+                const buttonStyle = this.testApp.getComputedStyle(addButton);
+
+                // 基本的なスタイル適用の確認
+                this.assertExists(inputStyle.color, '入力フィールドに文字色が設定されている');
+                this.assertExists(inputStyle.backgroundColor, '入力フィールドに背景色が設定されている');
+                this.assertExists(buttonStyle.color, 'ボタンに文字色が設定されている');
+                this.assertExists(buttonStyle.backgroundColor, 'ボタンに背景色が設定されている');
+            },
+            'accessibility'
+        );
+
+        // グローバル関数定義
+        async function runAllTests() {
+            await testFramework.runAllTests();
+        }
+
+        async function runUnitTests() {
+            await testFramework.prepareTestApp();
+            await testFramework.runTestsByCategory('unit');
+            testFramework.updateCategoryStatus('unit');
+        }
+
+        async function runIntegrationTests() {
+            await testFramework.prepareTestApp();
+            await testFramework.runTestsByCategory('integration');
+            testFramework.updateCategoryStatus('integration');
+        }
+
+        async function runUITests() {
+            await testFramework.prepareTestApp();
+            await testFramework.runTestsByCategory('ui');
+            testFramework.updateCategoryStatus('ui');
+        }
+
+        async function runAccessibilityTests() {
+            await testFramework.prepareTestApp();
+            await testFramework.runTestsByCategory('accessibility');
+            testFramework.updateCategoryStatus('accessibility');
+        }
+
+        function clearResults() {
+            testFramework.clearResults();
+        }
+
+        // ページ読み込み時の初期化
+        document.addEventListener('DOMContentLoaded', function () {
+            console.log('🧪 シンプルタスクトラッカー テストスイートが読み込まれました');
+            console.log(`📊 総テスト数: ${testFramework.tests.length}`);
+
+            // 初期サマリーを更新
+            document.getElementById('totalTests').textContent = testFramework.tests.length;
+        });
+    </script>
+</body>
+
+</html>

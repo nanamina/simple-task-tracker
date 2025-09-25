@@ -1,0 +1,1559 @@
+<!DOCTYPE html>
+<html lang="ja">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="シンプルで使いやすい個人用タスク管理アプリケーション">
+  <meta name="keywords" content="タスク管理,TODO,生産性,日本語">
+  <meta name="author" content="Simple Task Tracker">
+  <title>シンプルタスクトラッカー - 日々のタスクを簡単に管理</title>
+
+  <!-- Accessibility improvements -->
+  <meta name="theme-color" content="#2563eb">
+  <link rel="icon"
+    href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📝</text></svg>">
+
+  <style>
+    /* Task Tracker Styles - Consolidated Single File Version */
+
+    /* Reset and Base Styles */
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    /* Accessibility - Screen reader only content */
+    .visually-hidden {
+      position: absolute !important;
+      width: 1px !important;
+      height: 1px !important;
+      padding: 0 !important;
+      margin: -1px !important;
+      overflow: hidden !important;
+      clip: rect(0, 0, 0, 0) !important;
+      white-space: nowrap !important;
+      border: 0 !important;
+    }
+
+    html {
+      scroll-behavior: smooth;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+      line-height: 1.6;
+      color: #333;
+      background: #f8fafc;
+      padding: 20px;
+      min-height: 100vh;
+    }
+
+    /* Container */
+    .container {
+      max-width: 800px;
+      margin: 0 auto;
+      padding: 0 20px;
+    }
+
+    /* App Header */
+    .app-header {
+      text-align: center;
+      margin-bottom: 2rem;
+      padding: 2rem 0;
+    }
+
+    .app-title {
+      color: #2563eb;
+      font-size: 2.5rem;
+      font-weight: 700;
+      margin-bottom: 0.5rem;
+      text-shadow: 0 2px 4px rgba(37, 99, 235, 0.1);
+    }
+
+    .app-subtitle {
+      color: #6b7280;
+      font-size: 1.1rem;
+      opacity: 0.9;
+    }
+
+    /* Task Input Section */
+    .task-input-section {
+      background: white;
+      padding: 2rem;
+      border-radius: 12px;
+      box-shadow: 0 4px 6px rgba(0, 0, 0, 0.05);
+      margin-bottom: 2rem;
+      border: 1px solid #e5e7eb;
+      transition: all 0.3s ease;
+    }
+
+    .task-input-section:hover {
+      box-shadow: 0 10px 25px rgba(0, 0, 0, 0.08);
+    }
+
+    /* Input Container */
+    .input-container {
+      display: flex;
+      gap: 1rem;
+      align-items: center;
+    }
+
+    .task-input {
+      flex: 1;
+      padding: 12px 16px;
+      border: 1px solid #d1d5db;
+      border-radius: 6px;
+      font-size: 1rem;
+      transition: all 0.3s ease;
+      background: #fafafa;
+    }
+
+    .task-input:focus {
+      outline: none;
+      border-color: #2563eb;
+      box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
+      background: white;
+    }
+
+    .task-input::placeholder {
+      color: #9ca3af;
+      font-style: italic;
+    }
+
+    .task-input.error {
+      border-color: #dc2626;
+      background: #fef2f2;
+      box-shadow: 0 0 0 3px rgba(220, 38, 38, 0.1);
+      animation: shake 0.5s ease-in-out;
+    }
+
+    @keyframes shake {
+
+      0%,
+      100% {
+        transform: translateX(0);
+      }
+
+      25% {
+        transform: translateX(-5px);
+      }
+
+      75% {
+        transform: translateX(5px);
+      }
+    }
+
+    /* Add Task Button */
+    .add-task-btn {
+      background: #2563eb;
+      color: white;
+      border: none;
+      padding: 12px 24px;
+      border-radius: 6px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.3s ease;
+      white-space: nowrap;
+    }
+
+    .add-task-btn:hover {
+      background: #1d4ed8;
+      transform: translateY(-2px);
+      box-shadow: 0 4px 12px rgba(37, 99, 235, 0.3);
+    }
+
+    .add-task-btn:focus {
+      outline: 2px solid #2563eb;
+      outline-offset: 2px;
+      border-radius: 4px;
+    }
+
+    / * Task List Section */ .task-list-section {
+      background: white;
+      border-radius: 12px;
+      box-shadow: 0 4px 6px rgba(0, 0, 0, 0.05);
+      overflow: hidden;
+      border: 1px solid #e5e7eb;
+      transition: all 0.3s ease;
+    }
+
+    .task-list-section:hover {
+      box-shadow: 0 10px 25px rgba(0, 0, 0, 0.08);
+    }
+
+    .task-list-header {
+      padding: 1.5rem 2rem;
+      border-bottom: 1px solid #e5e7eb;
+      background: linear-gradient(135deg, #f9fafb 0%, #f3f4f6 100%);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .section-title {
+      color: #1f2937;
+      font-size: 1.5rem;
+      font-weight: 600;
+      margin: 0;
+    }
+
+    .task-counter {
+      color: #6b7280;
+      font-size: 0.875rem;
+      font-weight: 500;
+      background: white;
+      padding: 0.25rem 0.75rem;
+      border-radius: 20px;
+      border: 1px solid #e5e7eb;
+      transition: transform 0.2s ease;
+    }
+
+    /* Task List */
+    .task-list {
+      list-style: none;
+      padding: 0;
+      margin: 0;
+    }
+
+    .task-item {
+      display: flex;
+      align-items: center;
+      padding: 1rem 2rem;
+      border-bottom: 1px solid #f3f4f6;
+      transition: all 0.3s ease;
+      position: relative;
+    }
+
+    .task-item::before {
+      content: '';
+      position: absolute;
+      left: 0;
+      top: 0;
+      bottom: 0;
+      width: 4px;
+      background: #2563eb;
+      transform: scaleY(0);
+      transition: transform 0.3s ease;
+    }
+
+    .task-item:hover {
+      background: #f9fafb;
+      transform: translateX(4px);
+    }
+
+    .task-item:hover::before {
+      transform: scaleY(1);
+    }
+
+    .task-item:last-child {
+      border-bottom: none;
+    }
+
+    /* Completed task styling */
+    .task-item.completed {
+      background: #f8f9fa;
+      opacity: 0.8;
+    }
+
+    .task-item.completed::before {
+      background: #10b981;
+      transform: scaleY(1);
+    }
+
+    .task-item.completed:hover {
+      background: #f1f3f4;
+    }
+
+    .task-content {
+      flex: 1;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+    }
+
+    .task-content:focus {
+      outline: 2px solid #2563eb;
+      outline-offset: 2px;
+      border-radius: 4px;
+    }
+
+    /*
+ Task Toggle Button */
+    .task-toggle {
+      background: none;
+      border: none;
+      cursor: pointer;
+      padding: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .task-checkbox {
+      width: 20px;
+      height: 20px;
+      border: 2px solid #d1d5db;
+      border-radius: 4px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: all 0.3s ease;
+      font-size: 12px;
+      font-weight: bold;
+    }
+
+    .task-checkbox.completed {
+      background: #10b981;
+      border-color: #10b981;
+      color: white;
+      transform: scale(1.1);
+    }
+
+    /* Task Details */
+    .task-details {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      gap: 0.25rem;
+    }
+
+    .task-description {
+      font-size: 1rem;
+      transition: all 0.3s ease;
+      line-height: 1.4;
+    }
+
+    .task-description.completed {
+      text-decoration: line-through;
+      color: #6b7280;
+    }
+
+    .task-meta {
+      display: flex;
+      gap: 1rem;
+      font-size: 0.75rem;
+      color: #9ca3af;
+    }
+
+    .task-status {
+      font-weight: 500;
+      padding: 0.125rem 0.5rem;
+      border-radius: 12px;
+      background: #f3f4f6;
+    }
+
+    .task-status.completed {
+      background: #d1fae5;
+      color: #065f46;
+    }
+
+    .task-status.todo {
+      background: #fef3c7;
+      color: #92400e;
+    }
+
+    .task-date {
+      color: #9ca3af;
+    }
+
+    /* Task Delete Button */
+    .task-delete {
+      background: #ef4444;
+      color: white;
+      border: none;
+      padding: 0.25rem 0.5rem;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 0.875rem;
+      transition: all 0.3s ease;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .task-delete:hover {
+      background: #dc2626;
+      transform: scale(1.05);
+    }
+
+    .task-delete:focus {
+      outline: 2px solid #2563eb;
+      outline-offset: 2px;
+    }
+
+    .delete-icon {
+      font-size: 1rem;
+      font-weight: bold;
+    }
+
+    /* Empty State */
+    .empty-state {
+      text-align: center;
+      padding: 4rem 2rem;
+      color: #6b7280;
+      background: linear-gradient(135deg, #f9fafb 0%, #f3f4f6 100%);
+    }
+
+    .empty-state-icon {
+      font-size: 4rem;
+      margin-bottom: 1.5rem;
+      opacity: 0.6;
+      animation: float 3s ease-in-out infinite;
+    }
+
+    @keyframes float {
+
+      0%,
+      100% {
+        transform: translateY(0px);
+      }
+
+      50% {
+        transform: translateY(-10px);
+      }
+    }
+
+    .empty-state-title {
+      font-size: 1.5rem;
+      margin-bottom: 1rem;
+      color: #374151;
+      font-weight: 600;
+    }
+
+    .empty-state-message {
+      font-size: 1rem;
+      line-height: 1.6;
+      max-width: 400px;
+      margin: 0 auto;
+      color: #6b7280;
+    }
+
+    /* Message System */
+    .error-message,
+    .warning-message,
+    .success-message {
+      padding: 1rem 1.5rem;
+      border-radius: 8px;
+      margin: 1rem 0;
+      font-weight: 500;
+      display: none;
+      animation: slideIn 0.3s ease-out;
+      position: relative;
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+      line-height: 1.5;
+    }
+
+    @keyframes slideIn {
+      from {
+        opacity: 0;
+        transform: translateY(-10px);
+      }
+
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+
+    .error-message {
+      background: #fef2f2;
+      color: #dc2626;
+      border: 1px solid #fecaca;
+    }
+
+    .warning-message {
+      background: #fffbeb;
+      color: #d97706;
+      border: 1px solid #fed7aa;
+    }
+
+    .success-message {
+      background: #f0fdf4;
+      color: #16a34a;
+      border: 1px solid #bbf7d0;
+    }
+
+    .error-message.show,
+    .warning-message.show,
+    .success-message.show {
+      display: block;
+    }
+
+    /* App Footer */
+    .app-footer {
+      text-align: center;
+      padding: 2rem 0;
+      margin-top: 3rem;
+      border-top: 1px solid #e5e7eb;
+    }
+
+    .footer-text {
+      color: #9ca3af;
+      font-size: 0.875rem;
+      transition: color 0.3s ease;
+    }
+
+    .footer-text.storage-unavailable {
+      color: #d97706;
+      font-weight: 500;
+    }
+
+    /* 
+Skip to main content link */
+    .skip-link {
+      position: absolute;
+      top: -40px;
+      left: 6px;
+      background: #2563eb;
+      color: white;
+      padding: 8px;
+      text-decoration: none;
+      border-radius: 4px;
+      z-index: 1000;
+      transition: top 0.3s;
+    }
+
+    .skip-link:focus {
+      top: 6px;
+    }
+
+    /* Mobile Responsive */
+    @media (max-width: 768px) {
+      .container {
+        padding: 0 15px;
+      }
+
+      .app-title {
+        font-size: 2rem;
+      }
+
+      .app-header {
+        padding: 1.5rem 0;
+      }
+
+      .task-input-section,
+      .task-list-section {
+        padding: 1.5rem;
+      }
+
+      .task-list-header {
+        padding: 1rem 1.5rem;
+        flex-direction: column;
+        gap: 0.5rem;
+        align-items: flex-start;
+      }
+
+      .task-item {
+        padding: 1rem 1.5rem;
+      }
+
+      .task-item:hover {
+        transform: none;
+      }
+
+      .task-meta {
+        flex-direction: column;
+        gap: 0.25rem;
+      }
+
+      .input-container {
+        flex-direction: column;
+        gap: 0.75rem;
+      }
+
+      .add-task-btn {
+        width: 100%;
+        justify-content: center;
+      }
+    }
+
+    @media (max-width: 480px) {
+      body {
+        padding: 15px;
+      }
+
+      .app-title {
+        font-size: 1.75rem;
+      }
+
+      .task-input-section,
+      .task-list-section {
+        padding: 1rem;
+      }
+
+      .task-item {
+        padding: 0.75rem 1rem;
+      }
+
+      .empty-state {
+        padding: 3rem 1rem;
+      }
+
+      .empty-state-icon {
+        font-size: 3rem;
+      }
+    }
+
+    /* Reduced motion support */
+    @media (prefers-reduced-motion: reduce) {
+      * {
+        animation-duration: 0.01ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: 0.01ms !important;
+      }
+
+      .empty-state-icon {
+        animation: none;
+      }
+    }
+  </style>
+</head>
+
+<body>
+
+  <a href="#main-content" class="skip-link">メインコンテンツにスキップ</a>
+  <div class="container">
+    <header class="app-header">
+      <h1 class="app-title">シンプルタスクトラッカー</h1>
+      <p class="app-subtitle">日々のタスクを簡単に管理</p>
+    </header>
+
+    <main id="main-content" class="app-main" role="main">
+      <!-- タスク入力エリア -->
+      <section class="task-input-section" aria-labelledby="input-section-title">
+        <h2 id="input-section-title" class="visually-hidden">新しいタスクの追加</h2>
+        <div class="input-container">
+          <label for="taskInput" class="visually-hidden">タスクの内容を入力してください</label>
+          <input type="text" id="taskInput" class="task-input" placeholder="新しいタスクを入力してください..." maxlength="200"
+            autocomplete="off" aria-describedby="input-help">
+          <div id="input-help" class="visually-hidden">最大200文字まで入力できます。Enterキーまたは追加ボタンでタスクを追加します。</div>
+          <button type="button" id="addTaskBtn" class="add-task-btn" aria-label="新しいタスクを追加">
+            <span aria-hidden="true">追加</span>
+          </button>
+        </div>
+      </section>
+
+      <!-- タスクリスト表示エリア -->
+      <section class="task-list-section" aria-labelledby="task-list-title">
+        <div class="task-list-header">
+          <h2 id="task-list-title" class="section-title">タスク一覧</h2>
+          <div class="task-counter" aria-live="polite" aria-atomic="true">
+            <span id="taskCount">0</span> 件のタスク
+          </div>
+        </div>
+
+        <!-- タスクリストコンテナ -->
+        <ul id="taskList" class="task-list" role="list" aria-label="タスクリスト">
+          <!-- タスクアイテムがここに動的に追加されます -->
+        </ul>
+
+        <!-- 空状態表示 -->
+        <div id="emptyState" class="empty-state" role="status" aria-live="polite">
+          <div class="empty-state-icon" aria-hidden="true">📝</div>
+          <h3 class="empty-state-title">まだタスクがありません</h3>
+          <p class="empty-state-message">
+            最初のタスクを追加して、生産性を向上させましょう！<br>
+            上の入力フィールドにタスクを入力してEnterキーを押すか、「追加」ボタンをクリックしてください。
+          </p>
+        </div>
+      </section>
+
+      <!-- エラー表示エリア -->
+      <div id="error-message" class="error-message" role="alert" aria-live="polite">
+        <!-- エラーメッセージがここに表示されます -->
+      </div>
+
+      <!-- 警告表示エリア -->
+      <div id="warning-message" class="warning-message" role="alert" aria-live="polite">
+        <!-- 警告メッセージがここに表示されます -->
+      </div>
+    </main>
+
+    <footer class="app-footer">
+      <p class="footer-text">
+        シンプルタスクトラッカー - データはブラウザに保存されます
+      </p>
+    </footer>
+  </div>
+
+  <script>
+    // Task Tracker Script - Consolidated Single File Version
+
+    // Task Manager Object
+    const TaskManager = {
+      tasks: [],
+      nextId: 1,
+      isComposing: false, // IME入力状態を追跡
+
+      // Data versioning constants
+      STORAGE_KEY: 'simple-task-tracker-data',
+      CURRENT_VERSION: '1.0',
+      SUPPORTED_VERSIONS: ['1.0'],
+
+      // Initialize the application
+      init() {
+        console.log('シンプルタスクトラッカーを初期化中... 📝');
+
+        try {
+          // Check storage availability first
+          const storageAvailable = this.isStorageAvailable();
+          if (!storageAvailable) {
+            console.warn('Local Storage が利用できません');
+            this.showStorageWarning('Local Storage が利用できません。データは保存されません。');
+            this.updateStorageStatus(false);
+          } else {
+            this.updateStorageStatus(true);
+          }
+
+          // Load data from storage
+          const loadSuccess = this.loadFromStorage();
+
+          // Bind events
+          this.bindEvents();
+
+          // Initial render
+          this.render();
+
+          // Success message
+          const taskCount = this.tasks.length;
+          const completedCount = this.tasks.filter(t => t.completed).length;
+          console.log(`シンプルタスクトラッカーが読み込まれました！ 📝`);
+          console.log(`タスク: ${taskCount}件 (完了: ${completedCount}件)`);
+
+          // Show welcome message if no tasks
+          if (taskCount === 0 && loadSuccess) {
+            console.log('新しいタスクを追加してみましょう！');
+          }
+
+          // Announce successful initialization to screen readers
+          this.announceToScreenReader('シンプルタスクトラッカーが正常に読み込まれました');
+
+        } catch (error) {
+          this.handleCriticalError(error, 'アプリケーション初期化');
+        }
+      },
+
+      // Event binding
+      bindEvents() {
+        const taskInput = document.getElementById('taskInput');
+        const addTaskBtn = document.getElementById('addTaskBtn');
+        const taskList = document.getElementById('taskList');
+
+        // Add task button click
+        addTaskBtn.addEventListener('click', (e) => {
+          e.preventDefault();
+          this.handleAddTaskWithFeedback(e.target);
+        });
+
+        // IME入力状態の追跡
+        taskInput.addEventListener('compositionstart', () => {
+          this.isComposing = true;
+        });
+
+        taskInput.addEventListener('compositionend', () => {
+          this.isComposing = false;
+        });
+
+        // Enter key handling with IME support
+        taskInput.addEventListener('keydown', (e) => {
+          if (e.key === 'Enter' && !this.isComposing) {
+            e.preventDefault();
+            this.handleAddTaskWithFeedback(addTaskBtn);
+          }
+        });
+
+        // Real-time input validation
+        taskInput.addEventListener('input', (e) => {
+          this.handleInputValidation(e.target);
+        });
+
+        // Task list event delegation
+        taskList.addEventListener('click', (e) => {
+          e.preventDefault();
+          const taskItem = e.target.closest('.task-item');
+          if (!taskItem) return;
+
+          const taskId = parseInt(taskItem.dataset.taskId);
+
+          // Handle task completion toggle
+          if (e.target.closest('.task-toggle') || e.target.closest('.task-content')) {
+            this.handleTaskToggleWithAnimation(taskId, taskItem);
+          }
+          // Handle task deletion
+          else if (e.target.closest('.task-delete')) {
+            this.handleTaskDeleteWithAnimation(taskId, taskItem);
+          }
+        });
+
+        // Focus management
+        taskInput.addEventListener('focus', () => {
+          taskInput.parentElement.classList.add('focused');
+        });
+
+        taskInput.addEventListener('blur', () => {
+          taskInput.parentElement.classList.remove('focused');
+        });
+
+        console.log('イベントハンドラーを設定しました 🎯');
+      },
+      // Enhanced task addition with validation and feedback
+      handleAddTaskWithFeedback(buttonElement) {
+        const taskInput = document.getElementById('taskInput');
+        const description = taskInput.value.trim();
+
+        // Clear any existing error states
+        taskInput.classList.remove('error');
+        this.hideMessages();
+
+        // Comprehensive input validation
+        const validationResult = this.validateTaskInput(description);
+        if (!validationResult.isValid) {
+          this.showInputError(taskInput, validationResult.message);
+          return;
+        }
+
+        // Visual feedback for button press
+        buttonElement.style.transform = 'scale(0.95)';
+        setTimeout(() => {
+          buttonElement.style.transform = 'scale(1)';
+        }, 150);
+
+        const task = {
+          id: this.nextId++,
+          description: this.sanitizeInput(description),
+          completed: false,
+          createdAt: new Date(),
+          completedAt: null
+        };
+
+        this.tasks.push(task);
+
+        // Clear input with animation
+        taskInput.style.transform = 'scale(0.98)';
+        taskInput.value = '';
+        setTimeout(() => {
+          taskInput.style.transform = 'scale(1)';
+          taskInput.focus();
+        }, 100);
+
+        // Save to storage
+        const saveSuccess = this.saveToStorage();
+        if (!saveSuccess) {
+          console.warn('タスクは追加されましたが、保存に失敗しました');
+          this.showMessage('タスクを追加しましたが、保存に失敗しました', 'warning');
+        }
+
+        this.render();
+        console.log(`新しいタスクを追加しました: "${task.description}"`);
+
+        // Show success feedback
+        this.showSuccessMessage(`タスク「${task.description}」を追加しました`);
+
+        // Announce to screen readers
+        this.announceToScreenReader('新しいタスクを追加しました');
+      },
+
+      // Input validation with real-time feedback
+      handleInputValidation(inputElement) {
+        const value = inputElement.value;
+        const length = value.length;
+        const maxLength = 200;
+
+        // Remove error state if input becomes valid
+        if (length > 0 && length <= maxLength) {
+          inputElement.classList.remove('error');
+        }
+
+        // Show character counter near limit
+        if (length > maxLength * 0.8) {
+          const remaining = maxLength - length;
+          if (remaining >= 0) {
+            inputElement.title = `残り${remaining}文字`;
+          } else {
+            inputElement.title = `${Math.abs(remaining)}文字超過`;
+            inputElement.classList.add('error');
+          }
+        } else {
+          inputElement.title = '';
+        }
+      },
+      // Enhanced task completion toggle with animation
+      handleTaskToggleWithAnimation(id, taskElement) {
+        const task = this.tasks.find(t => t.id === id);
+        if (!task) {
+          console.warn(`タスクが見つかりません: ID ${id}`);
+          return;
+        }
+
+        // Immediate visual feedback
+        taskElement.style.transform = 'scale(0.98)';
+        const checkbox = taskElement.querySelector('.task-checkbox');
+
+        // Toggle task state
+        task.completed = !task.completed;
+        task.completedAt = task.completed ? new Date() : null;
+
+        // Animate checkbox change
+        if (task.completed) {
+          checkbox.style.transform = 'scale(1.2)';
+          checkbox.textContent = '✓';
+          checkbox.classList.add('completed');
+          setTimeout(() => {
+            checkbox.style.transform = 'scale(1)';
+          }, 200);
+        } else {
+          checkbox.style.transform = 'scale(0.8)';
+          checkbox.textContent = '';
+          checkbox.classList.remove('completed');
+          setTimeout(() => {
+            checkbox.style.transform = 'scale(1)';
+          }, 200);
+        }
+
+        // Reset task element scale
+        setTimeout(() => {
+          taskElement.style.transform = 'scale(1)';
+        }, 150);
+
+        // Save to storage
+        const saveSuccess = this.saveToStorage();
+        if (!saveSuccess) {
+          console.warn('タスクの状態は変更されましたが、保存に失敗しました');
+          this.showMessage('状態を変更しましたが、保存に失敗しました', 'warning');
+        }
+
+        // Re-render with updated state
+        setTimeout(() => {
+          this.render();
+        }, 300);
+
+        const statusText = task.completed ? '完了' : '未完了';
+        console.log(`タスクの状態を変更しました: "${task.description}" → ${statusText}`);
+
+        // Show status change feedback
+        const actionText = task.completed ? '完了しました' : '未完了に戻しました';
+        this.showSuccessMessage(`タスク「${task.description}」を${actionText}`);
+
+        // Announce to screen readers
+        this.announceToScreenReader(`タスク ${actionText}`);
+      },
+
+      // Enhanced task deletion with animation
+      handleTaskDeleteWithAnimation(id, taskElement) {
+        const taskIndex = this.tasks.findIndex(t => t.id === id);
+        if (taskIndex === -1) {
+          console.warn(`削除するタスクが見つかりません: ID ${id}`);
+          return;
+        }
+
+        const deletedTask = this.tasks[taskIndex];
+
+        // Animate task removal
+        taskElement.style.transition = 'all 0.3s ease';
+        taskElement.style.transform = 'translateX(-100%)';
+        taskElement.style.opacity = '0';
+
+        // Remove from array after animation
+        setTimeout(() => {
+          this.tasks.splice(taskIndex, 1);
+
+          // Save to storage
+          const saveSuccess = this.saveToStorage();
+          if (!saveSuccess) {
+            console.warn('タスクは削除されましたが、保存に失敗しました');
+            this.showMessage('タスクを削除しましたが、保存に失敗しました', 'warning');
+          }
+
+          this.render();
+          console.log(`タスクを削除しました: "${deletedTask.description}"`);
+
+          // Show deletion feedback
+          this.showSuccessMessage(`タスク「${deletedTask.description}」を削除しました`);
+
+          // Announce to screen readers
+          this.announceToScreenReader('タスクを削除しました');
+        }, 300);
+      },
+      // Dynamic task list rendering
+      render() {
+        const taskList = document.getElementById('taskList');
+        const emptyState = document.getElementById('emptyState');
+        const taskCount = document.getElementById('taskCount');
+
+        // Update task counter with animation
+        if (taskCount) {
+          const currentCount = parseInt(taskCount.textContent) || 0;
+          const newCount = this.tasks.length;
+
+          if (currentCount !== newCount) {
+            taskCount.style.transform = 'scale(1.2)';
+            taskCount.textContent = newCount;
+            setTimeout(() => {
+              taskCount.style.transform = 'scale(1)';
+            }, 200);
+          }
+        }
+
+        // Enhanced empty state handling
+        if (this.tasks.length === 0) {
+          this.showEmptyState(taskList, emptyState);
+          return;
+        }
+
+        // Show task list and hide empty state
+        emptyState.style.display = 'none';
+        taskList.style.display = 'block';
+
+        // Create document fragment for efficient DOM manipulation
+        const fragment = document.createDocumentFragment();
+
+        // Sort tasks: incomplete first, then completed
+        const sortedTasks = [...this.tasks].sort((a, b) => {
+          if (a.completed === b.completed) {
+            return new Date(b.createdAt) - new Date(a.createdAt);
+          }
+          return a.completed - b.completed;
+        });
+
+        sortedTasks.forEach((task, index) => {
+          const li = this.createTaskElement(task, index);
+          fragment.appendChild(li);
+        });
+
+        // Clear and update task list with fade effect
+        taskList.style.opacity = '0.7';
+        taskList.innerHTML = '';
+        taskList.appendChild(fragment);
+
+        // Animate task items appearing
+        setTimeout(() => {
+          taskList.style.opacity = '1';
+          const taskItems = taskList.querySelectorAll('.task-item');
+          taskItems.forEach((item, index) => {
+            item.style.opacity = '0';
+            item.style.transform = 'translateY(10px)';
+            setTimeout(() => {
+              item.style.transition = 'all 0.3s ease';
+              item.style.opacity = '1';
+              item.style.transform = 'translateY(0)';
+            }, index * 50);
+          });
+        }, 50);
+
+        console.log(`タスクリストを更新しました: ${this.tasks.length}件のタスク`);
+      },
+      // Create individual task element
+      createTaskElement(task, index) {
+        const li = document.createElement('li');
+        li.className = `task-item ${task.completed ? 'completed' : ''}`;
+        li.dataset.taskId = task.id;
+        li.style.animationDelay = `${index * 0.1}s`;
+
+        li.innerHTML = `
+                    <div class="task-content" role="button" tabindex="0" aria-label="タスクをクリックして完了状態を切り替え">
+                        <button class="task-toggle" aria-label="タスクの完了状態を切り替え" tabindex="-1">
+                            <span class="task-checkbox ${task.completed ? 'completed' : ''}" aria-hidden="true">
+                                ${task.completed ? '✓' : ''}
+                            </span>
+                        </button>
+                        <div class="task-details">
+                            <span class="task-description ${task.completed ? 'completed' : ''}" title="${task.description}">
+                                ${task.description}
+                            </span>
+                            <div class="task-meta">
+                                <span class="task-status ${task.completed ? 'completed' : 'todo'}" aria-label="タスクの状態">
+                                    ${task.completed ? '完了' : '未完了'}
+                                </span>
+                                <span class="task-date" aria-label="作成日時">
+                                    ${this.formatDate(task.createdAt)}
+                                </span>
+                                ${task.completed && task.completedAt ?
+            `<span class="task-completed-date" aria-label="完了日時">
+                                        ${this.formatCompletionDate(task.completedAt)}
+                                    </span>` : ''
+          }
+                            </div>
+                        </div>
+                    </div>
+                    <button class="task-delete" aria-label="タスクを削除: ${task.description}" title="削除">
+                        <span class="delete-icon" aria-hidden="true">×</span>
+                    </button>
+                `;
+
+        // Add keyboard support for task content
+        const taskContent = li.querySelector('.task-content');
+        taskContent.addEventListener('keydown', (e) => {
+          if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault();
+            this.toggleTask(task.id);
+          }
+        });
+
+        return li;
+      },
+
+      // Show empty state
+      showEmptyState(taskList, emptyState) {
+        taskList.style.display = 'none';
+        emptyState.style.display = 'block';
+      },
+
+      // Check if localStorage is available
+      isStorageAvailable() {
+        try {
+          const test = '__storage_test__';
+          localStorage.setItem(test, test);
+          localStorage.removeItem(test);
+          return true;
+        } catch (error) {
+          return false;
+        }
+      },
+      // Save to localStorage with error handling
+      saveToStorage() {
+        if (!this.isStorageAvailable()) {
+          console.warn('Local Storage が利用できません');
+          this.showStorageWarning('Local Storage が利用できません。データは保存されません。');
+          return false;
+        }
+
+        try {
+          const data = {
+            tasks: this.tasks,
+            nextId: this.nextId,
+            version: this.CURRENT_VERSION,
+            lastSaved: new Date().toISOString(),
+            metadata: {
+              totalTasks: this.tasks.length,
+              completedTasks: this.tasks.filter(t => t.completed).length
+            }
+          };
+
+          const jsonData = JSON.stringify(data);
+
+          // Check data size
+          if (jsonData.length > 5000000) {
+            console.warn('データサイズが大きすぎます');
+            this.showStorageWarning('データサイズが大きすぎるため、保存できません。');
+            return false;
+          }
+
+          localStorage.setItem(this.STORAGE_KEY, jsonData);
+          console.log('データを正常に保存しました');
+          return true;
+
+        } catch (error) {
+          console.error('データの保存に失敗しました:', error);
+
+          if (error.name === 'QuotaExceededError') {
+            this.showStorageWarning('ストレージの容量が不足しています。古いデータを削除してください。');
+          } else if (error.name === 'SecurityError') {
+            this.showStorageWarning('セキュリティ設定によりデータを保存できません。');
+          } else {
+            this.showStorageWarning('データの保存に失敗しました。ブラウザを閉じるとデータが失われます。');
+          }
+          return false;
+        }
+      },
+
+      // Load from localStorage with version management
+      loadFromStorage() {
+        if (!this.isStorageAvailable()) {
+          console.warn('Local Storage が利用できません');
+          this.showStorageWarning('Local Storage が利用できません。データの読み込みができません。');
+          return false;
+        }
+
+        try {
+          const rawData = localStorage.getItem(this.STORAGE_KEY);
+
+          if (!rawData) {
+            console.log('保存されたデータがありません');
+            return true;
+          }
+
+          const parsed = JSON.parse(rawData);
+
+          // Version compatibility check
+          if (!this.isVersionSupported(parsed.version)) {
+            console.warn(`サポートされていないデータバージョン: ${parsed.version}`);
+            this.showStorageWarning(`データのバージョン（${parsed.version}）がサポートされていません。`);
+            return false;
+          }
+
+          // Load tasks with validation
+          this.tasks = this.validateAndCleanTasks(parsed.tasks || []);
+          this.nextId = Math.max(parsed.nextId || 1, this.getMaxTaskId() + 1);
+
+          // Convert date strings back to Date objects
+          this.tasks.forEach(task => {
+            try {
+              task.createdAt = new Date(task.createdAt);
+              if (task.completedAt) {
+                task.completedAt = new Date(task.completedAt);
+              }
+            } catch (dateError) {
+              console.warn('日付の変換に失敗しました:', dateError);
+              task.createdAt = new Date();
+              task.completedAt = task.completed ? new Date() : null;
+            }
+          });
+
+          console.log(`${this.tasks.length}件のタスクを読み込みました`);
+          return true;
+
+        } catch (error) {
+          console.error('データの読み込みに失敗しました:', error);
+
+          if (error instanceof SyntaxError) {
+            this.showStorageWarning('保存されたデータが破損しています。新しいデータで開始します。');
+            this.clearStorage();
+          } else {
+            this.showStorageWarning('データの読み込みに失敗しました。新しいデータで開始します。');
+          }
+
+          this.tasks = [];
+          this.nextId = 1;
+          return false;
+        }
+      },
+      // Check if data version is supported
+      isVersionSupported(version) {
+        return this.SUPPORTED_VERSIONS.includes(version);
+      },
+
+      // Validate and clean task data
+      validateAndCleanTasks(tasks) {
+        if (!Array.isArray(tasks)) {
+          console.warn('タスクデータが配列ではありません');
+          return [];
+        }
+
+        return tasks.filter(task => {
+          if (!task || typeof task !== 'object') {
+            console.warn('無効なタスクオブジェクト:', task);
+            return false;
+          }
+
+          if (!task.id || typeof task.id !== 'number') {
+            console.warn('無効なタスクID:', task);
+            return false;
+          }
+
+          if (!task.description || typeof task.description !== 'string') {
+            console.warn('無効なタスク説明:', task);
+            return false;
+          }
+
+          if (typeof task.completed !== 'boolean') {
+            console.warn('無効な完了状態:', task);
+            task.completed = false;
+          }
+
+          return true;
+        });
+      },
+
+      // Get maximum task ID
+      getMaxTaskId() {
+        if (this.tasks.length === 0) return 0;
+        return Math.max(...this.tasks.map(task => task.id));
+      },
+
+      // Clear storage
+      clearStorage() {
+        try {
+          localStorage.removeItem(this.STORAGE_KEY);
+          console.log('ストレージデータをクリアしました');
+          return true;
+        } catch (error) {
+          console.error('ストレージのクリアに失敗しました:', error);
+          return false;
+        }
+      },
+
+      // Show storage warning
+      showStorageWarning(customMessage = null) {
+        const defaultMessage = 'データの保存ができません。ブラウザを閉じるとデータが失われます。';
+        const message = customMessage || defaultMessage;
+
+        this.showMessage(message, 'warning', true);
+        console.warn('Storage Warning:', message);
+        this.updateStorageStatus(false);
+      },
+
+      // Update storage status in footer
+      updateStorageStatus(isAvailable) {
+        const footerText = document.querySelector('.footer-text');
+        if (footerText) {
+          if (isAvailable) {
+            footerText.textContent = 'シンプルタスクトラッカー - データはブラウザに保存されます';
+            footerText.classList.remove('storage-unavailable');
+          } else {
+            footerText.textContent = 'シンプルタスクトラッカー - ⚠️ データ保存が利用できません';
+            footerText.classList.add('storage-unavailable');
+          }
+        }
+      },
+      // Enhanced message display system
+      showMessage(message, type = 'error', persistent = false) {
+        let messageElement = document.getElementById(`${type}-message`);
+
+        if (!messageElement) {
+          messageElement = document.createElement('div');
+          messageElement.id = `${type}-message`;
+          messageElement.className = `${type}-message`;
+          messageElement.setAttribute('role', 'alert');
+          messageElement.setAttribute('aria-live', 'polite');
+
+          const main = document.querySelector('.app-main');
+          if (main) {
+            main.appendChild(messageElement);
+          } else {
+            document.querySelector('.container').appendChild(messageElement);
+          }
+        }
+
+        messageElement.textContent = message;
+        messageElement.classList.add('show');
+
+        if (!persistent) {
+          const hideDelay = type === 'warning' ? 8000 : type === 'error' ? 5000 : 3000;
+          setTimeout(() => {
+            messageElement.classList.remove('show');
+          }, hideDelay);
+        }
+
+        console.log(`${type.toUpperCase()}: ${message}`);
+      },
+
+      // Show success message
+      showSuccessMessage(message) {
+        let messageElement = document.getElementById('success-message');
+
+        if (!messageElement) {
+          messageElement = document.createElement('div');
+          messageElement.id = 'success-message';
+          messageElement.className = 'success-message';
+          messageElement.setAttribute('role', 'status');
+          messageElement.setAttribute('aria-live', 'polite');
+
+          const main = document.querySelector('.app-main');
+          if (main) {
+            main.appendChild(messageElement);
+          }
+        }
+
+        messageElement.textContent = message;
+        messageElement.classList.add('show');
+
+        setTimeout(() => {
+          messageElement.classList.remove('show');
+        }, 3000);
+      },
+
+      // Show input error
+      showInputError(inputElement, message) {
+        inputElement.classList.add('error');
+        inputElement.focus();
+
+        inputElement.style.animation = 'shake 0.5s ease-in-out';
+        setTimeout(() => {
+          inputElement.style.animation = '';
+        }, 500);
+
+        this.showMessage(message, 'error');
+      },
+
+      // Hide all messages
+      hideMessages() {
+        const messages = document.querySelectorAll('.error-message, .warning-message, .success-message');
+        messages.forEach(msg => {
+          msg.classList.remove('show');
+        });
+      },
+      // Comprehensive input validation
+      validateTaskInput(input) {
+        if (!input || input.length === 0) {
+          return {
+            isValid: false,
+            message: 'タスクの内容を入力してください'
+          };
+        }
+
+        if (input.trim().length === 0) {
+          return {
+            isValid: false,
+            message: 'タスクの内容を入力してください（空白のみは無効です）'
+          };
+        }
+
+        if (input.length > 200) {
+          return {
+            isValid: false,
+            message: 'タスクの説明は200文字以内で入力してください'
+          };
+        }
+
+        if (this.containsUnsafeContent(input)) {
+          return {
+            isValid: false,
+            message: '無効な文字が含まれています'
+          };
+        }
+
+        const specialCharCount = (input.match(/[<>'"&]/g) || []).length;
+        if (specialCharCount > input.length * 0.3) {
+          return {
+            isValid: false,
+            message: '特殊文字が多すぎます'
+          };
+        }
+
+        const duplicateTask = this.tasks.find(task =>
+          task.description.toLowerCase().trim() === input.toLowerCase().trim()
+        );
+        if (duplicateTask) {
+          return {
+            isValid: false,
+            message: '同じ内容のタスクが既に存在します'
+          };
+        }
+
+        return {
+          isValid: true,
+          message: ''
+        };
+      },
+
+      // Check for unsafe content
+      containsUnsafeContent(input) {
+        const unsafePatterns = [
+          /<script/i,
+          /javascript:/i,
+          /on\w+\s*=/i,
+          /<iframe/i,
+          /<object/i,
+          /<embed/i
+        ];
+
+        return unsafePatterns.some(pattern => pattern.test(input));
+      },
+
+      // Sanitize input
+      sanitizeInput(input) {
+        return input
+          .replace(/</g, '&lt;')
+          .replace(/>/g, '&gt;')
+          .replace(/"/g, '&quot;')
+          .replace(/'/g, '&#x27;')
+          .replace(/&/g, '&amp;')
+          .trim();
+      },
+      // Format date for display
+      formatDate(date) {
+        if (!date) return '';
+
+        try {
+          const now = new Date();
+          const taskDate = new Date(date);
+          const diffTime = Math.abs(now - taskDate);
+          const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+
+          if (diffDays === 1) {
+            return '今日';
+          } else if (diffDays === 2) {
+            return '昨日';
+          } else if (diffDays <= 7) {
+            return `${diffDays - 1}日前`;
+          } else {
+            return taskDate.toLocaleDateString('ja-JP', {
+              month: 'short',
+              day: 'numeric'
+            });
+          }
+        } catch (error) {
+          console.warn('日付のフォーマットに失敗しました:', error);
+          return '不明';
+        }
+      },
+
+      // Format completion date
+      formatCompletionDate(date) {
+        if (!date) return '';
+
+        try {
+          const completedDate = new Date(date);
+          return `完了: ${completedDate.toLocaleDateString('ja-JP', {
+            month: 'short',
+            day: 'numeric'
+          })}`;
+        } catch (error) {
+          console.warn('完了日付のフォーマットに失敗しました:', error);
+          return '';
+        }
+      },
+
+      // Announce to screen readers
+      announceToScreenReader(message) {
+        const announcement = document.createElement('div');
+        announcement.setAttribute('aria-live', 'polite');
+        announcement.setAttribute('aria-atomic', 'true');
+        announcement.className = 'visually-hidden';
+        announcement.textContent = message;
+
+        document.body.appendChild(announcement);
+
+        setTimeout(() => {
+          document.body.removeChild(announcement);
+        }, 1000);
+      },
+
+      // Handle critical errors
+      handleCriticalError(error, context) {
+        console.error(`Critical error in ${context}:`, error);
+        this.showMessage(`アプリケーションエラーが発生しました: ${context}`, 'error', true);
+
+        // Try to save current state
+        try {
+          this.saveToStorage();
+        } catch (saveError) {
+          console.error('Emergency save failed:', saveError);
+        }
+      },
+
+      // Toggle task (for keyboard support)
+      toggleTask(id) {
+        const task = this.tasks.find(t => t.id === id);
+        if (task) {
+          task.completed = !task.completed;
+          task.completedAt = task.completed ? new Date() : null;
+          this.saveToStorage();
+          this.render();
+        }
+      }
+    };
+
+    // Initialize the application when DOM is loaded
+    document.addEventListener('DOMContentLoaded', () => {
+      TaskManager.init();
+    });
+
+    // Handle page visibility changes to save data
+    document.addEventListener('visibilitychange', () => {
+      if (document.visibilityState === 'hidden') {
+        TaskManager.saveToStorage();
+      }
+    });
+
+    // Handle beforeunload to save data
+    window.addEventListener('beforeunload', () => {
+      TaskManager.saveToStorage();
+    });
+  </script>
+</body>
+
+</html>

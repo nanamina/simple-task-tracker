@@ -1,0 +1,422 @@
+name: 🔧 Maintenance & Monitoring
+
+on:
+  schedule:
+    # Run daily at 2 AM UTC
+    - cron: '0 2 * * *'
+  workflow_dispatch:
+    inputs:
+      maintenance_type:
+        description: 'Type of maintenance to run'
+        required: true
+        default: 'all'
+        type: choice
+        options:
+        - all
+        - security-audit
+        - dependency-update
+        - health-check
+        - cleanup
+
+env:
+  NODE_VERSION: '20'
+  AWS_REGION: 'us-west-2'
+
+jobs:
+  # Job 1: Health Check
+  health-check:
+    name: 🏥 Health Check
+    runs-on: ubuntu-latest
+    if: github.event.inputs.maintenance_type == 'health-check' || github.event.inputs.maintenance_type == 'all' || github.event_name == 'schedule'
+    steps:
+      - name: 📥 Checkout code
+        uses: actions/checkout@v4
+
+      - name: ⚙️ Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: 🏥 Check AWS resources
+        run: |
+          echo "🏥 Checking AWS resources health..."
+          
+          # Check if stack exists and is in good state
+          STACK_STATUS=$(aws cloudformation describe-stacks \
+            --stack-name SimpleTaskTrackerStack \
+            --region ${{ env.AWS_REGION }} \
+            --query 'Stacks[0].StackStatus' \
+            --output text 2>/dev/null || echo "NOT_FOUND")
+          
+          echo "Stack Status: $STACK_STATUS"
+          
+          if [[ "$STACK_STATUS" == "CREATE_COMPLETE" || "$STACK_STATUS" == "UPDATE_COMPLETE" ]]; then
+            echo "✅ Stack is healthy"
+            
+            # Get website URL
+            WEBSITE_URL=$(aws cloudformation describe-stacks \
+              --stack-name SimpleTaskTrackerStack \
+              --region ${{ env.AWS_REGION }} \
+              --query 'Stacks[0].Outputs[?OutputKey==`WebsiteURL`].OutputValue' \
+              --output text 2>/dev/null || echo "")
+            
+            if [[ -n "$WEBSITE_URL" ]]; then
+              echo "🌐 Testing website: $WEBSITE_URL"
+              
+              # Test website availability
+              HTTP_STATUS=$(curl -s -o /dev/null -w "%{http_code}" "$WEBSITE_URL")
+              if [[ "$HTTP_STATUS" == "200" ]]; then
+                echo "✅ Website is accessible"
+              else
+                echo "❌ Website returned HTTP $HTTP_STATUS"
+                exit 1
+              fi
+              
+              # Test response time
+              RESPONSE_TIME=$(curl -s -o /dev/null -w "%{time_total}" "$WEBSITE_URL")
+              echo "⏱️ Response time: ${RESPONSE_TIME}s"
+              
+              # Check if response time is reasonable (< 5 seconds)
+              if (( $(echo "$RESPONSE_TIME < 5.0" | bc -l) )); then
+                echo "✅ Response time is acceptable"
+              else
+                echo "⚠️ Response time is slow (>${RESPONSE_TIME}s)"
+              fi
+            fi
+          else
+            echo "❌ Stack is not healthy: $STACK_STATUS"
+            exit 1
+          fi
+
+      - name: 📊 Check CloudFront metrics
+        run: |
+          echo "📊 Checking CloudFront metrics..."
+          
+          DISTRIBUTION_ID=$(aws cloudformation describe-stacks \
+            --stack-name SimpleTaskTrackerStack \
+            --region ${{ env.AWS_REGION }} \
+            --query 'Stacks[0].Outputs[?OutputKey==`DistributionId`].OutputValue' \
+            --output text 2>/dev/null || echo "")
+          
+          if [[ -n "$DISTRIBUTION_ID" ]]; then
+            echo "🔗 Distribution ID: $DISTRIBUTION_ID"
+            
+            # Get distribution status
+            DISTRIBUTION_STATUS=$(aws cloudfront get-distribution \
+              --id "$DISTRIBUTION_ID" \
+              --query 'Distribution.Status' \
+              --output text 2>/dev/null || echo "UNKNOWN")
+            
+            echo "📊 Distribution Status: $DISTRIBUTION_STATUS"
+            
+            if [[ "$DISTRIBUTION_STATUS" == "Deployed" ]]; then
+              echo "✅ CloudFront distribution is deployed"
+            else
+              echo "⚠️ CloudFront distribution status: $DISTRIBUTION_STATUS"
+            fi
+          fi
+
+  # Job 2: Security Audit
+  security-audit:
+    name: 🔒 Security Audit
+    runs-on: ubuntu-latest
+    if: github.event.inputs.maintenance_type == 'security-audit' || github.event.inputs.maintenance_type == 'all' || github.event_name == 'schedule'
+    steps:
+      - name: 📥 Checkout code
+        uses: actions/checkout@v4
+
+      - name: 🟢 Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+
+      - name: 📦 Install dependencies
+        run: |
+          npm ci
+          cd cdk && npm ci
+
+      - name: 🔒 Run npm audit
+        run: |
+          echo "🔒 Running npm security audit..."
+          
+          echo "Main project audit:"
+          npm audit --audit-level=moderate || echo "⚠️ Vulnerabilities found in main project"
+          
+          echo "CDK project audit:"
+          cd cdk
+          npm audit --audit-level=moderate || echo "⚠️ Vulnerabilities found in CDK project"
+          cd ..
+
+      - name: 🔍 Check for sensitive data
+        run: |
+          echo "🔍 Scanning for sensitive data patterns..."
+          
+          # Check for potential secrets
+          if grep -r -i "password\|secret\|key\|token" --include="*.js" --include="*.html" --include="*.css" --include="*.ts" . | grep -v "placeholder\|example\|demo\|test"; then
+            echo "⚠️ Potential sensitive data patterns found - please review"
+          else
+            echo "✅ No obvious sensitive data patterns found"
+          fi
+
+      - name: 🔒 Check file permissions
+        run: |
+          echo "🔒 Checking file permissions..."
+          
+          # Check for overly permissive files
+          PERMISSIVE_FILES=$(find . -type f -perm -o+w 2>/dev/null | grep -v ".git" | head -10)
+          if [[ -n "$PERMISSIVE_FILES" ]]; then
+            echo "⚠️ World-writable files found:"
+            echo "$PERMISSIVE_FILES"
+          else
+            echo "✅ No world-writable files found"
+          fi
+
+  # Job 3: Dependency Updates
+  dependency-update:
+    name: 📦 Dependency Updates
+    runs-on: ubuntu-latest
+    if: github.event.inputs.maintenance_type == 'dependency-update' || github.event.inputs.maintenance_type == 'all' || github.event_name == 'schedule'
+    steps:
+      - name: 📥 Checkout code
+        uses: actions/checkout@v4
+
+      - name: 🟢 Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+
+      - name: 📦 Check for outdated dependencies
+        run: |
+          echo "📦 Checking for outdated dependencies..."
+          
+          echo "Main project dependencies:"
+          npm outdated || echo "Some dependencies are outdated"
+          
+          echo "CDK dependencies:"
+          cd cdk
+          npm outdated || echo "Some CDK dependencies are outdated"
+          cd ..
+
+      - name: 🔍 Check dependency vulnerabilities
+        run: |
+          echo "🔍 Checking dependency vulnerabilities..."
+          
+          # Check main project
+          MAIN_VULNS=$(npm audit --audit-level=high --json 2>/dev/null | jq '.metadata.vulnerabilities.high + .metadata.vulnerabilities.critical' 2>/dev/null || echo "0")
+          echo "Main project high/critical vulnerabilities: $MAIN_VULNS"
+          
+          # Check CDK project
+          cd cdk
+          CDK_VULNS=$(npm audit --audit-level=high --json 2>/dev/null | jq '.metadata.vulnerabilities.high + .metadata.vulnerabilities.critical' 2>/dev/null || echo "0")
+          echo "CDK project high/critical vulnerabilities: $CDK_VULNS"
+          cd ..
+          
+          if [[ "$MAIN_VULNS" -gt 0 || "$CDK_VULNS" -gt 0 ]]; then
+            echo "⚠️ High/critical vulnerabilities found - consider updating dependencies"
+          else
+            echo "✅ No high/critical vulnerabilities found"
+          fi
+
+  # Job 4: Cleanup
+  cleanup:
+    name: 🧹 Cleanup
+    runs-on: ubuntu-latest
+    if: github.event.inputs.maintenance_type == 'cleanup' || github.event.inputs.maintenance_type == 'all' || github.event_name == 'schedule'
+    steps:
+      - name: 📥 Checkout code
+        uses: actions/checkout@v4
+
+      - name: ⚙️ Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: 🧹 Clean up old CloudFormation stacks
+        run: |
+          echo "🧹 Checking for old CloudFormation stacks..."
+          
+          # List all stacks with our naming pattern
+          OLD_STACKS=$(aws cloudformation list-stacks \
+            --stack-status-filter DELETE_COMPLETE \
+            --query 'StackSummaries[?contains(StackName, `SimpleTaskTracker`)].StackName' \
+            --output text 2>/dev/null || echo "")
+          
+          if [[ -n "$OLD_STACKS" ]]; then
+            echo "ℹ️ Found old stacks (already deleted): $OLD_STACKS"
+          else
+            echo "✅ No old stacks to clean up"
+          fi
+
+      - name: 🧹 Check S3 bucket lifecycle policies
+        run: |
+          echo "🧹 Checking S3 bucket lifecycle policies..."
+          
+          # Get bucket names from stack outputs
+          BUCKET_NAME=$(aws cloudformation describe-stacks \
+            --stack-name SimpleTaskTrackerStack \
+            --region ${{ env.AWS_REGION }} \
+            --query 'Stacks[0].Outputs[?OutputKey==`BucketName`].OutputValue' \
+            --output text 2>/dev/null || echo "")
+          
+          if [[ -n "$BUCKET_NAME" ]]; then
+            echo "🪣 Checking bucket: $BUCKET_NAME"
+            
+            # Check lifecycle configuration
+            LIFECYCLE=$(aws s3api get-bucket-lifecycle-configuration \
+              --bucket "$BUCKET_NAME" 2>/dev/null || echo "No lifecycle policy")
+            
+            if [[ "$LIFECYCLE" == "No lifecycle policy" ]]; then
+              echo "ℹ️ No lifecycle policy configured"
+            else
+              echo "✅ Lifecycle policy is configured"
+            fi
+          fi
+
+      - name: 🧹 Clean up old GitHub artifacts
+        run: |
+          echo "🧹 GitHub artifacts cleanup is handled by retention policies"
+          echo "ℹ️ Artifacts are automatically cleaned up based on retention settings"
+
+  # Job 5: Performance Monitoring
+  performance-monitoring:
+    name: ⚡ Performance Monitoring
+    runs-on: ubuntu-latest
+    if: github.event.inputs.maintenance_type == 'all' || github.event_name == 'schedule'
+    steps:
+      - name: 📥 Checkout code
+        uses: actions/checkout@v4
+
+      - name: 🟢 Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+
+      - name: ⚙️ Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: ⚡ Performance test
+        run: |
+          echo "⚡ Running performance tests..."
+          
+          # Get website URL
+          WEBSITE_URL=$(aws cloudformation describe-stacks \
+            --stack-name SimpleTaskTrackerStack \
+            --region ${{ env.AWS_REGION }} \
+            --query 'Stacks[0].Outputs[?OutputKey==`WebsiteURL`].OutputValue' \
+            --output text 2>/dev/null || echo "")
+          
+          if [[ -n "$WEBSITE_URL" ]]; then
+            echo "🌐 Testing performance for: $WEBSITE_URL"
+            
+            # Test multiple times and get average
+            TOTAL_TIME=0
+            TESTS=5
+            
+            for i in $(seq 1 $TESTS); do
+              RESPONSE_TIME=$(curl -s -o /dev/null -w "%{time_total}" "$WEBSITE_URL")
+              TOTAL_TIME=$(echo "$TOTAL_TIME + $RESPONSE_TIME" | bc -l)
+              echo "Test $i: ${RESPONSE_TIME}s"
+            done
+            
+            AVG_TIME=$(echo "scale=3; $TOTAL_TIME / $TESTS" | bc -l)
+            echo "📊 Average response time: ${AVG_TIME}s"
+            
+            # Check if performance is acceptable
+            if (( $(echo "$AVG_TIME < 3.0" | bc -l) )); then
+              echo "✅ Performance is good"
+            elif (( $(echo "$AVG_TIME < 5.0" | bc -l) )); then
+              echo "⚠️ Performance is acceptable but could be improved"
+            else
+              echo "❌ Performance is poor (>${AVG_TIME}s)"
+            fi
+          fi
+
+      - name: 📊 Check CloudWatch metrics
+        run: |
+          echo "📊 Checking CloudWatch metrics..."
+          
+          DISTRIBUTION_ID=$(aws cloudformation describe-stacks \
+            --stack-name SimpleTaskTrackerStack \
+            --region ${{ env.AWS_REGION }} \
+            --query 'Stacks[0].Outputs[?OutputKey==`DistributionId`].OutputValue' \
+            --output text 2>/dev/null || echo "")
+          
+          if [[ -n "$DISTRIBUTION_ID" ]]; then
+            # Get metrics for the last 24 hours
+            END_TIME=$(date -u +%Y-%m-%dT%H:%M:%S)
+            START_TIME=$(date -u -d '24 hours ago' +%Y-%m-%dT%H:%M:%S)
+            
+            echo "📈 Getting CloudFront metrics from $START_TIME to $END_TIME"
+            
+            # Get request count
+            REQUESTS=$(aws cloudwatch get-metric-statistics \
+              --namespace AWS/CloudFront \
+              --metric-name Requests \
+              --dimensions Name=DistributionId,Value=$DISTRIBUTION_ID \
+              --start-time $START_TIME \
+              --end-time $END_TIME \
+              --period 86400 \
+              --statistics Sum \
+              --query 'Datapoints[0].Sum' \
+              --output text 2>/dev/null || echo "0")
+            
+            echo "📊 Requests in last 24h: $REQUESTS"
+            
+            # Get error rate
+            ERRORS=$(aws cloudwatch get-metric-statistics \
+              --namespace AWS/CloudFront \
+              --metric-name 4xxErrorRate \
+              --dimensions Name=DistributionId,Value=$DISTRIBUTION_ID \
+              --start-time $START_TIME \
+              --end-time $END_TIME \
+              --period 86400 \
+              --statistics Average \
+              --query 'Datapoints[0].Average' \
+              --output text 2>/dev/null || echo "0")
+            
+            echo "📊 4xx Error rate: $ERRORS%"
+          fi
+
+  # Job 6: Maintenance Summary
+  maintenance-summary:
+    name: 📋 Maintenance Summary
+    runs-on: ubuntu-latest
+    needs: [health-check, security-audit, dependency-update, cleanup, performance-monitoring]
+    if: always()
+    steps:
+      - name: 📋 Generate maintenance summary
+        run: |
+          echo "# 🔧 Maintenance Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Date**: $(date -u)" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| Task | Status |" >> $GITHUB_STEP_SUMMARY
+          echo "|------|--------|" >> $GITHUB_STEP_SUMMARY
+          echo "| Health Check | ${{ needs.health-check.result == 'success' && '✅ Passed' || needs.health-check.result == 'skipped' && '⏭️ Skipped' || '❌ Failed' }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Security Audit | ${{ needs.security-audit.result == 'success' && '✅ Passed' || needs.security-audit.result == 'skipped' && '⏭️ Skipped' || '❌ Failed' }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Dependency Update | ${{ needs.dependency-update.result == 'success' && '✅ Passed' || needs.dependency-update.result == 'skipped' && '⏭️ Skipped' || '❌ Failed' }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Cleanup | ${{ needs.cleanup.result == 'success' && '✅ Passed' || needs.cleanup.result == 'skipped' && '⏭️ Skipped' || '❌ Failed' }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Performance Monitoring | ${{ needs.performance-monitoring.result == 'success' && '✅ Passed' || needs.performance-monitoring.result == 'skipped' && '⏭️ Skipped' || '❌ Failed' }} |" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          
+          # Overall status
+          if [[ "${{ needs.health-check.result }}" != "failure" && 
+                "${{ needs.security-audit.result }}" != "failure" && 
+                "${{ needs.dependency-update.result }}" != "failure" && 
+                "${{ needs.cleanup.result }}" != "failure" && 
+                "${{ needs.performance-monitoring.result }}" != "failure" ]]; then
+            echo "## ✅ All maintenance tasks completed successfully" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "## ⚠️ Some maintenance tasks need attention" >> $GITHUB_STEP_SUMMARY
+          fi

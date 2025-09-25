@@ -1,0 +1,52 @@
+{
+    "name": "simple-task-tracker-tests",
+    "version": "1.0.0",
+    "description": "シンプルタスクトラッカーの自動テストスイート",
+    "main": "run-tests.js",
+    "scripts": {
+        "test": "node run-tests.js all",
+        "test:unit": "node run-tests.js unit",
+        "test:integration": "node run-tests.js integration",
+        "test:ui": "node run-tests.js ui",
+        "test:accessibility": "node run-tests.js accessibility",
+        "test:mobile": "node run-tests.js mobile",
+        "test:desktop": "node run-tests.js desktop",
+        "test:chrome": "node run-tests.js chrome",
+        "test:firefox": "node run-tests.js firefox",
+        "test:safari": "node run-tests.js safari",
+        "test:headed": "node run-tests.js headed",
+        "test:debug": "node run-tests.js debug",
+        "test:report": "node run-tests.js report",
+        "test:clean": "node run-tests.js clean",
+        "test:install": "node run-tests.js install",
+        "playwright:install": "npx playwright install",
+        "playwright:test": "npx playwright test",
+        "playwright:report": "npx playwright show-report",
+        "playwright:codegen": "npx playwright codegen file://$(pwd)/simple-task-tracker-standalone.html"
+    },
+    "keywords": [
+        "playwright",
+        "testing",
+        "automation",
+        "task-tracker",
+        "japanese",
+        "accessibility",
+        "responsive"
+    ],
+    "author": "Simple Task Tracker Team",
+    "license": "MIT",
+    "devDependencies": {
+        "@playwright/test": "^1.40.0"
+    },
+    "engines": {
+        "node": ">=16.0.0"
+    },
+    "repository": {
+        "type": "git",
+        "url": "."
+    },
+    "bugs": {
+        "url": "."
+    },
+    "homepage": "."
+}

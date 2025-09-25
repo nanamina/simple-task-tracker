@@ -1,0 +1,388 @@
+name: 🔍 Pull Request Validation
+
+on:
+  pull_request:
+    branches: [ main, develop ]
+    types: [opened, synchronize, reopened, ready_for_review]
+
+env:
+  NODE_VERSION: '20'
+
+jobs:
+  # Job 1: PR Information
+  pr-info:
+    name: 📋 PR Information
+    runs-on: ubuntu-latest
+    if: github.event.pull_request.draft == false
+    steps:
+      - name: 📋 PR Summary
+        run: |
+          echo "# 🔍 Pull Request Validation" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| Property | Value |" >> $GITHUB_STEP_SUMMARY
+          echo "|----------|-------|" >> $GITHUB_STEP_SUMMARY
+          echo "| PR Number | #${{ github.event.number }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Title | ${{ github.event.pull_request.title }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Author | @${{ github.event.pull_request.user.login }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Base Branch | ${{ github.event.pull_request.base.ref }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Head Branch | ${{ github.event.pull_request.head.ref }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Changed Files | ${{ github.event.pull_request.changed_files }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Additions | +${{ github.event.pull_request.additions }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Deletions | -${{ github.event.pull_request.deletions }} |" >> $GITHUB_STEP_SUMMARY
+
+  # Job 2: Changed Files Analysis
+  changed-files:
+    name: 📁 Changed Files Analysis
+    runs-on: ubuntu-latest
+    if: github.event.pull_request.draft == false
+    outputs:
+      has-frontend-changes: ${{ steps.changes.outputs.frontend }}
+      has-cdk-changes: ${{ steps.changes.outputs.cdk }}
+      has-test-changes: ${{ steps.changes.outputs.tests }}
+      has-config-changes: ${{ steps.changes.outputs.config }}
+    steps:
+      - name: 📥 Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: 📁 Detect changed files
+        id: changes
+        run: |
+          # Get list of changed files
+          CHANGED_FILES=$(git diff --name-only ${{ github.event.pull_request.base.sha }} ${{ github.event.pull_request.head.sha }})
+          
+          echo "Changed files:"
+          echo "$CHANGED_FILES"
+          
+          # Check for different types of changes
+          if echo "$CHANGED_FILES" | grep -E '\.(html|css|js)$' | grep -v test; then
+            echo "frontend=true" >> $GITHUB_OUTPUT
+            echo "🎨 Frontend changes detected"
+          else
+            echo "frontend=false" >> $GITHUB_OUTPUT
+          fi
+          
+          if echo "$CHANGED_FILES" | grep -E '^cdk/'; then
+            echo "cdk=true" >> $GITHUB_OUTPUT
+            echo "🏗️ CDK changes detected"
+          else
+            echo "cdk=false" >> $GITHUB_OUTPUT
+          fi
+          
+          if echo "$CHANGED_FILES" | grep -E 'test|spec'; then
+            echo "tests=true" >> $GITHUB_OUTPUT
+            echo "🧪 Test changes detected"
+          else
+            echo "tests=false" >> $GITHUB_OUTPUT
+          fi
+          
+          if echo "$CHANGED_FILES" | grep -E '\.(json|yml|yaml|config\.|\.config)$'; then
+            echo "config=true" >> $GITHUB_OUTPUT
+            echo "⚙️ Configuration changes detected"
+          else
+            echo "config=false" >> $GITHUB_OUTPUT
+          fi
+
+  # Job 3: Frontend Validation
+  frontend-validation:
+    name: 🎨 Frontend Validation
+    runs-on: ubuntu-latest
+    needs: changed-files
+    if: needs.changed-files.outputs.has-frontend-changes == 'true' && github.event.pull_request.draft == false
+    steps:
+      - name: 📥 Checkout code
+        uses: actions/checkout@v4
+
+      - name: 🟢 Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+
+      - name: 📦 Install dependencies
+        run: npm ci
+
+      - name: 🔍 Validate HTML structure
+        run: |
+          echo "🔍 Validating HTML structure..."
+          
+          # Check for required elements
+          if ! grep -q "Simple Task Tracker" simple-task-tracker-standalone.html; then
+            echo "❌ Missing title in standalone HTML"
+            exit 1
+          fi
+          
+          if ! grep -q "task-tracker-script.js" simple-task-tracker-standalone.html; then
+            echo "❌ Missing script reference in standalone HTML"
+            exit 1
+          fi
+          
+          if ! grep -q "task-tracker-styles.css" simple-task-tracker-standalone.html; then
+            echo "❌ Missing CSS reference in standalone HTML"
+            exit 1
+          fi
+          
+          echo "✅ HTML structure validation passed"
+
+      - name: 🔍 Validate JavaScript
+        run: |
+          echo "🔍 Validating JavaScript..."
+          
+          # Syntax check
+          node -c task-tracker-script.js
+          
+          # Check for required functions
+          if ! grep -q "function.*addTask\|const.*addTask\|addTask.*=" task-tracker-script.js; then
+            echo "⚠️ addTask function not found (might be renamed)"
+          fi
+          
+          echo "✅ JavaScript validation passed"
+
+      - name: 🔍 Validate CSS
+        run: |
+          echo "🔍 Validating CSS..."
+          
+          # Basic CSS validation (check for syntax errors)
+          if command -v csslint >/dev/null 2>&1; then
+            csslint task-tracker-styles.css || echo "⚠️ CSS lint warnings (non-blocking)"
+          else
+            echo "ℹ️ CSS lint not available, performing basic checks"
+            
+            # Check for balanced braces
+            OPEN_BRACES=$(grep -o '{' task-tracker-styles.css | wc -l)
+            CLOSE_BRACES=$(grep -o '}' task-tracker-styles.css | wc -l)
+            
+            if [[ $OPEN_BRACES -ne $CLOSE_BRACES ]]; then
+              echo "❌ Unbalanced braces in CSS"
+              exit 1
+            fi
+          fi
+          
+          echo "✅ CSS validation passed"
+
+      - name: 🎭 Run frontend tests
+        run: |
+          npx playwright install --with-deps
+          npm run test:ui
+
+  # Job 4: CDK Validation
+  cdk-validation:
+    name: 🏗️ CDK Validation
+    runs-on: ubuntu-latest
+    needs: changed-files
+    if: needs.changed-files.outputs.has-cdk-changes == 'true' && github.event.pull_request.draft == false
+    steps:
+      - name: 📥 Checkout code
+        uses: actions/checkout@v4
+
+      - name: 🟢 Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+
+      - name: 📦 Install CDK dependencies
+        run: |
+          cd cdk
+          npm ci
+
+      - name: 🔨 Build CDK
+        run: |
+          cd cdk
+          npm run build
+
+      - name: 🧪 Run CDK tests
+        run: |
+          cd cdk
+          npm test
+
+      - name: 🔍 CDK diff validation
+        run: |
+          cd cdk
+          npx cdk synth --quiet > /dev/null
+          echo "✅ CDK synthesis successful"
+
+      - name: 🔒 Security validation
+        run: |
+          cd cdk
+          echo "🔒 Checking for security best practices..."
+          
+          # Check for hardcoded secrets
+          if grep -r -i "password\|secret\|key" lib/ --include="*.ts" | grep -v "SecretValue\|Secret.from"; then
+            echo "⚠️ Potential hardcoded secrets found"
+          fi
+          
+          # Check for public access
+          if grep -r "publicReadAccess.*true" lib/ --include="*.ts"; then
+            echo "⚠️ Public read access enabled - ensure this is intentional"
+          fi
+          
+          echo "✅ Security validation completed"
+
+  # Job 5: Test Coverage Analysis
+  test-coverage:
+    name: 🧪 Test Coverage Analysis
+    runs-on: ubuntu-latest
+    needs: changed-files
+    if: needs.changed-files.outputs.has-test-changes == 'true' && github.event.pull_request.draft == false
+    steps:
+      - name: 📥 Checkout code
+        uses: actions/checkout@v4
+
+      - name: 🟢 Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+
+      - name: 📦 Install dependencies
+        run: npm ci
+
+      - name: 🧪 Run all tests
+        run: |
+          npx playwright install --with-deps
+          npm run test
+
+      - name: 📊 Analyze test coverage
+        run: |
+          echo "📊 Test coverage analysis..."
+          
+          # Count test files
+          TEST_FILES=$(find . -name "*.test.js" -o -name "*.spec.js" | wc -l)
+          PLAYWRIGHT_TESTS=$(find playwright-tests -name "*.spec.js" 2>/dev/null | wc -l || echo 0)
+          
+          echo "📈 Test Statistics:"
+          echo "- Unit test files: $TEST_FILES"
+          echo "- Playwright test files: $PLAYWRIGHT_TESTS"
+          
+          # Check if new features have corresponding tests
+          echo "✅ Test coverage analysis completed"
+
+  # Job 6: Performance Impact Analysis
+  performance-analysis:
+    name: ⚡ Performance Impact Analysis
+    runs-on: ubuntu-latest
+    needs: changed-files
+    if: needs.changed-files.outputs.has-frontend-changes == 'true' && github.event.pull_request.draft == false
+    steps:
+      - name: 📥 Checkout code
+        uses: actions/checkout@v4
+
+      - name: 📏 Analyze file sizes
+        run: |
+          echo "📏 File size analysis..."
+          
+          echo "Current file sizes:"
+          ls -lh *.html *.js *.css 2>/dev/null || echo "Some files not found"
+          
+          # Check for large files
+          LARGE_FILES=$(find . -name "*.html" -o -name "*.js" -o -name "*.css" | xargs ls -l | awk '$5 > 1048576 {print $9 " (" $5 " bytes)"}')
+          
+          if [[ -n "$LARGE_FILES" ]]; then
+            echo "⚠️ Large files detected (>1MB):"
+            echo "$LARGE_FILES"
+          else
+            echo "✅ No unusually large files detected"
+          fi
+
+      - name: 🔍 Check for performance anti-patterns
+        run: |
+          echo "🔍 Checking for performance anti-patterns..."
+          
+          # Check for synchronous operations that might block
+          if grep -r "alert\|confirm\|prompt" *.js 2>/dev/null; then
+            echo "⚠️ Blocking dialog functions found (consider alternatives)"
+          fi
+          
+          # Check for inefficient selectors
+          if grep -r "document.getElementsByTagName\|document.all" *.js 2>/dev/null; then
+            echo "⚠️ Potentially inefficient DOM selectors found"
+          fi
+          
+          echo "✅ Performance analysis completed"
+
+  # Job 7: Accessibility Check
+  accessibility-check:
+    name: ♿ Accessibility Check
+    runs-on: ubuntu-latest
+    needs: changed-files
+    if: needs.changed-files.outputs.has-frontend-changes == 'true' && github.event.pull_request.draft == false
+    steps:
+      - name: 📥 Checkout code
+        uses: actions/checkout@v4
+
+      - name: 🟢 Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+
+      - name: 📦 Install dependencies
+        run: npm ci
+
+      - name: ♿ Run accessibility tests
+        run: |
+          npx playwright install --with-deps
+          npm run test:accessibility
+
+      - name: 🔍 Manual accessibility checks
+        run: |
+          echo "🔍 Performing manual accessibility checks..."
+          
+          # Check for alt attributes on images
+          if grep -o '<img[^>]*>' simple-task-tracker-standalone.html | grep -v 'alt='; then
+            echo "⚠️ Images without alt attributes found"
+          fi
+          
+          # Check for form labels
+          if grep -o '<input[^>]*>' simple-task-tracker-standalone.html | grep -v 'aria-label\|id=' | head -5; then
+            echo "ℹ️ Some inputs might need labels or aria-labels"
+          fi
+          
+          # Check for heading structure
+          if ! grep -q '<h[1-6]' simple-task-tracker-standalone.html; then
+            echo "⚠️ No heading elements found - consider adding for better structure"
+          fi
+          
+          echo "✅ Accessibility checks completed"
+
+  # Job 8: PR Summary
+  pr-summary:
+    name: 📋 PR Validation Summary
+    runs-on: ubuntu-latest
+    needs: [pr-info, changed-files, frontend-validation, cdk-validation, test-coverage, performance-analysis, accessibility-check]
+    if: always() && github.event.pull_request.draft == false
+    steps:
+      - name: 📋 Generate PR validation summary
+        run: |
+          echo "# 🔍 Pull Request Validation Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          
+          echo "## 📁 Changed Components" >> $GITHUB_STEP_SUMMARY
+          echo "| Component | Changed | Status |" >> $GITHUB_STEP_SUMMARY
+          echo "|-----------|---------|--------|" >> $GITHUB_STEP_SUMMARY
+          echo "| Frontend | ${{ needs.changed-files.outputs.has-frontend-changes }} | ${{ needs.frontend-validation.result == 'success' && '✅ Passed' || needs.frontend-validation.result == 'skipped' && '⏭️ Skipped' || '❌ Failed' }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| CDK Infrastructure | ${{ needs.changed-files.outputs.has-cdk-changes }} | ${{ needs.cdk-validation.result == 'success' && '✅ Passed' || needs.cdk-validation.result == 'skipped' && '⏭️ Skipped' || '❌ Failed' }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Tests | ${{ needs.changed-files.outputs.has-test-changes }} | ${{ needs.test-coverage.result == 'success' && '✅ Passed' || needs.test-coverage.result == 'skipped' && '⏭️ Skipped' || '❌ Failed' }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Configuration | ${{ needs.changed-files.outputs.has-config-changes }} | ℹ️ Manual Review |" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          
+          echo "## 🔍 Validation Results" >> $GITHUB_STEP_SUMMARY
+          echo "| Check | Status |" >> $GITHUB_STEP_SUMMARY
+          echo "|-------|--------|" >> $GITHUB_STEP_SUMMARY
+          echo "| Performance Analysis | ${{ needs.performance-analysis.result == 'success' && '✅ Passed' || needs.performance-analysis.result == 'skipped' && '⏭️ Skipped' || '❌ Failed' }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Accessibility Check | ${{ needs.accessibility-check.result == 'success' && '✅ Passed' || needs.accessibility-check.result == 'skipped' && '⏭️ Skipped' || '❌ Failed' }} |" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          
+          # Overall status
+          OVERALL_STATUS="✅ Ready for Review"
+          if [[ "${{ needs.frontend-validation.result }}" == "failure" || 
+                "${{ needs.cdk-validation.result }}" == "failure" || 
+                "${{ needs.test-coverage.result }}" == "failure" || 
+                "${{ needs.performance-analysis.result }}" == "failure" || 
+                "${{ needs.accessibility-check.result }}" == "failure" ]]; then
+            OVERALL_STATUS="❌ Issues Found"
+          fi
+          
+          echo "## 🎯 Overall Status: $OVERALL_STATUS" >> $GITHUB_STEP_SUMMARY

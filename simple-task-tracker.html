@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html lang="ja">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="シンプルで使いやすい個人用タスク管理アプリケーション">
+    <meta name="keywords" content="タスク管理,TODO,生産性,日本語">
+    <meta name="author" content="Simple Task Tracker">
+    <title>シンプルタスクトラッカー - 日々のタスクを簡単に管理</title>
+    <link rel="stylesheet" href="task-tracker-styles.css">
+
+    <!-- Accessibility improvements -->
+    <meta name="theme-color" content="#2563eb">
+    <link rel="icon"
+        href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📝</text></svg>">
+</head>
+
+<body>
+    <a href="#main-content" class="skip-link">メインコンテンツにスキップ</a>
+    <div class="container">
+        <header class="app-header">
+            <h1 class="app-title">シンプルタスクトラッカー</h1>
+            <p class="app-subtitle">日々のタスクを簡単に管理</p>
+        </header>
+
+        <main id="main-content" class="app-main" role="main">
+            <!-- タスク入力エリア -->
+            <section class="task-input-section" aria-labelledby="input-section-title">
+                <h2 id="input-section-title" class="visually-hidden">新しいタスクの追加</h2>
+                <div class="input-container">
+                    <label for="taskInput" class="visually-hidden">タスクの内容を入力してください</label>
+                    <input type="text" id="taskInput" class="task-input" placeholder="新しいタスクを入力してください..."
+                        maxlength="200" autocomplete="off" aria-describedby="input-help">
+                    <div id="input-help" class="visually-hidden">最大200文字まで入力できます。Enterキーまたは追加ボタンでタスクを追加します。</div>
+                    <button type="button" id="addTaskBtn" class="add-task-btn" aria-label="新しいタスクを追加">
+                        <span aria-hidden="true">追加</span>
+                    </button>
+                </div>
+            </section>
+
+            <!-- タスクリスト表示エリア -->
+            <section class="task-list-section" aria-labelledby="task-list-title">
+                <div class="task-list-header">
+                    <h2 id="task-list-title" class="section-title">タスク一覧</h2>
+                    <div class="task-counter" aria-live="polite" aria-atomic="true">
+                        <span id="taskCount">0</span> 件のタスク
+                    </div>
+                </div>
+
+                <!-- タスクリストコンテナ -->
+                <ul id="taskList" class="task-list" role="list" aria-label="タスクリスト">
+                    <!-- タスクアイテムがここに動的に追加されます -->
+                </ul>
+
+                <!-- 空状態表示 -->
+                <div id="emptyState" class="empty-state" role="status" aria-live="polite">
+                    <div class="empty-state-icon" aria-hidden="true">📝</div>
+                    <h3 class="empty-state-title">まだタスクがありません</h3>
+                    <p class="empty-state-message">
+                        最初のタスクを追加して、生産性を向上させましょう！<br>
+                        上の入力フィールドにタスクを入力してEnterキーを押すか、「追加」ボタンをクリックしてください。
+                    </p>
+                </div>
+            </section>
+
+            <!-- エラー表示エリア -->
+            <div id="error-message" class="error-message" role="alert" aria-live="polite">
+                <!-- エラーメッセージがここに表示されます -->
+            </div>
+
+            <!-- 警告表示エリア -->
+            <div id="warning-message" class="warning-message" role="alert" aria-live="polite">
+                <!-- 警告メッセージがここに表示されます -->
+            </div>
+        </main>
+
+        <footer class="app-footer">
+            <p class="footer-text">
+                シンプルタスクトラッカー - データはブラウザに保存されます
+            </p>
+        </footer>
+    </div>
+
+    <!-- タスクアイテムのテンプレート（JavaScript用） -->
+    <template id="task-item-template">
+        <li class="task-item" role="listitem">
+            <div class="task-content">
+                <button class="task-toggle" aria-label="タスクの完了状態を切り替え">
+                    <span class="task-checkbox" aria-hidden="true"></span>
+                </button>
+                <div class="task-details">
+                    <span class="task-description"></span>
+                    <div class="task-meta">
+                        <span class="task-status"></span>
+                        <span class="task-date"></span>
+                    </div>
+                </div>
+            </div>
+            <button class="task-delete" aria-label="タスクを削除">
+                <span class="delete-icon" aria-hidden="true">×</span>
+            </button>
+        </li>
+    </template>
+
+    <script src="task-tracker-script.js"></script>
+</body>
+
+</html>

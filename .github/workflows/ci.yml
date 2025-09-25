@@ -1,0 +1,349 @@
+name: 🔄 Continuous Integration
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main, develop ]
+
+env:
+  NODE_VERSION: '20'
+  AWS_REGION: 'us-west-2'
+
+jobs:
+  # Job 1: Code Quality & Linting
+  code-quality:
+    name: 🔍 Code Quality
+    runs-on: ubuntu-latest
+    steps:
+      - name: 📥 Checkout code
+        uses: actions/checkout@v4
+
+      - name: 🟢 Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+
+      - name: 📦 Install dependencies
+        run: |
+          npm ci
+          cd cdk && npm ci
+
+      - name: 🔍 Lint JavaScript/HTML
+        run: |
+          # Basic syntax check for JavaScript
+          node -c task-tracker-script.js
+          echo "✅ JavaScript syntax check passed"
+
+      - name: 🔍 Validate HTML
+        run: |
+          # Check if HTML files are well-formed
+          if command -v tidy >/dev/null 2>&1; then
+            tidy -q -e simple-task-tracker-standalone.html || echo "⚠️ HTML validation warnings (non-blocking)"
+            tidy -q -e simple-task-tracker.html || echo "⚠️ HTML validation warnings (non-blocking)"
+          else
+            echo "ℹ️ HTML Tidy not available, skipping HTML validation"
+          fi
+
+      - name: 🔍 Check file structure
+        run: |
+          echo "📁 Checking required files..."
+          test -f simple-task-tracker-standalone.html || (echo "❌ Missing standalone HTML" && exit 1)
+          test -f task-tracker-script.js || (echo "❌ Missing JavaScript file" && exit 1)
+          test -f task-tracker-styles.css || (echo "❌ Missing CSS file" && exit 1)
+          echo "✅ All required files present"
+
+  # Job 2: CDK Infrastructure Tests
+  cdk-tests:
+    name: 🏗️ CDK Infrastructure Tests
+    runs-on: ubuntu-latest
+    steps:
+      - name: 📥 Checkout code
+        uses: actions/checkout@v4
+
+      - name: 🟢 Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+
+      - name: 📦 Install CDK dependencies
+        run: |
+          cd cdk
+          npm ci
+
+      - name: 🔨 Build CDK
+        run: |
+          cd cdk
+          npm run build
+
+      - name: 🧪 Run CDK unit tests
+        run: |
+          cd cdk
+          npm test
+
+      - name: 🔍 CDK Synth validation
+        run: |
+          cd cdk
+          npx cdk synth --quiet > /dev/null
+          echo "✅ CDK synthesis successful"
+
+      - name: 📊 Upload CDK test results
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: cdk-test-results
+          path: cdk/coverage/
+          retention-days: 7
+
+  # Job 3: Unit Tests
+  unit-tests:
+    name: 🧪 Unit Tests
+    runs-on: ubuntu-latest
+    steps:
+      - name: 📥 Checkout code
+        uses: actions/checkout@v4
+
+      - name: 🟢 Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+
+      - name: 📦 Install dependencies
+        run: npm ci
+
+      - name: 🧪 Run unit tests
+        run: npm run test:unit
+
+      - name: 📊 Upload test results
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: unit-test-results
+          path: test-results/
+          retention-days: 7
+
+  # Job 4: Integration & UI Tests
+  integration-tests:
+    name: 🎭 Integration & UI Tests
+    runs-on: ubuntu-latest
+    steps:
+      - name: 📥 Checkout code
+        uses: actions/checkout@v4
+
+      - name: 🟢 Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+
+      - name: 📦 Install dependencies
+        run: npm ci
+
+      - name: 🎭 Install Playwright browsers
+        run: npx playwright install --with-deps
+
+      - name: 🧪 Run integration tests
+        run: npm run test:integration
+
+      - name: 🎨 Run UI tests
+        run: npm run test:ui
+
+      - name: ♿ Run accessibility tests
+        run: npm run test:accessibility
+
+      - name: 📱 Run mobile tests
+        run: npm run test:mobile
+
+      - name: 🖥️ Run desktop tests
+        run: npm run test:desktop
+
+      - name: 📊 Upload Playwright report
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: playwright-report
+          path: playwright-report/
+          retention-days: 30
+
+      - name: 📊 Upload test results
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: integration-test-results
+          path: test-results/
+          retention-days: 7
+
+  # Job 5: Cross-browser Testing
+  cross-browser-tests:
+    name: 🌐 Cross-browser Tests
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        browser: [chrome, firefox]
+    steps:
+      - name: 📥 Checkout code
+        uses: actions/checkout@v4
+
+      - name: 🟢 Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+
+      - name: 📦 Install dependencies
+        run: npm ci
+
+      - name: 🎭 Install Playwright browsers
+        run: npx playwright install --with-deps
+
+      - name: 🌐 Run ${{ matrix.browser }} tests
+        run: npm run test:${{ matrix.browser }}
+
+      - name: 📊 Upload ${{ matrix.browser }} test results
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: ${{ matrix.browser }}-test-results
+          path: test-results/
+          retention-days: 7
+
+  # Job 6: Security & Performance Checks
+  security-performance:
+    name: 🔒 Security & Performance
+    runs-on: ubuntu-latest
+    steps:
+      - name: 📥 Checkout code
+        uses: actions/checkout@v4
+
+      - name: 🟢 Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+
+      - name: 📦 Install dependencies
+        run: npm ci
+
+      - name: 🔒 Security audit
+        run: |
+          npm audit --audit-level=moderate || echo "⚠️ Security vulnerabilities found (non-blocking in CI)"
+          cd cdk && npm audit --audit-level=moderate || echo "⚠️ CDK security vulnerabilities found (non-blocking in CI)"
+
+      - name: 📏 Check bundle size
+        run: |
+          echo "📏 Checking file sizes..."
+          ls -lh *.html *.js *.css
+          
+          # Check if files are reasonable size (< 1MB each)
+          find . -name "*.html" -size +1M -exec echo "⚠️ Large HTML file: {}" \;
+          find . -name "*.js" -size +1M -exec echo "⚠️ Large JS file: {}" \;
+          find . -name "*.css" -size +1M -exec echo "⚠️ Large CSS file: {}" \;
+
+      - name: 🔍 Check for sensitive data
+        run: |
+          echo "🔍 Scanning for potential sensitive data..."
+          # Check for common patterns that shouldn't be in code
+          if grep -r -i "password\|secret\|key\|token" --include="*.js" --include="*.html" --include="*.css" . | grep -v "placeholder\|example\|demo"; then
+            echo "⚠️ Potential sensitive data found (review required)"
+          else
+            echo "✅ No obvious sensitive data patterns found"
+          fi
+
+  # Job 7: Build Validation
+  build-validation:
+    name: 🔨 Build Validation
+    runs-on: ubuntu-latest
+    needs: [code-quality, cdk-tests, unit-tests]
+    steps:
+      - name: 📥 Checkout code
+        uses: actions/checkout@v4
+
+      - name: 🟢 Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+
+      - name: 📦 Install dependencies
+        run: |
+          npm ci
+          cd cdk && npm ci
+
+      - name: 🔨 Build CDK
+        run: |
+          cd cdk
+          npm run build
+
+      - name: 🔍 Validate deployment readiness
+        run: |
+          echo "🔍 Validating deployment readiness..."
+          
+          # Check if all required files exist
+          test -f simple-task-tracker-standalone.html || exit 1
+          test -f task-tracker-script.js || exit 1
+          test -f task-tracker-styles.css || exit 1
+          test -f deploy-aws.sh || exit 1
+          
+          # Check if deploy script is executable
+          test -x deploy-aws.sh || chmod +x deploy-aws.sh
+          
+          echo "✅ All deployment prerequisites met"
+
+      - name: 📦 Create deployment artifact
+        run: |
+          mkdir -p deployment-package
+          cp simple-task-tracker-standalone.html deployment-package/
+          cp simple-task-tracker.html deployment-package/
+          cp task-tracker-script.js deployment-package/
+          cp task-tracker-styles.css deployment-package/
+          cp -r cdk deployment-package/
+          cp deploy-aws.sh deployment-package/
+          
+          # Create version info
+          echo "Build Date: $(date)" > deployment-package/build-info.txt
+          echo "Git Commit: ${GITHUB_SHA}" >> deployment-package/build-info.txt
+          echo "Git Branch: ${GITHUB_REF_NAME}" >> deployment-package/build-info.txt
+
+      - name: 📊 Upload deployment artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: deployment-package
+          path: deployment-package/
+          retention-days: 30
+
+  # Job 8: Test Summary
+  test-summary:
+    name: 📋 Test Summary
+    runs-on: ubuntu-latest
+    needs: [code-quality, cdk-tests, unit-tests, integration-tests, cross-browser-tests, security-performance, build-validation]
+    if: always()
+    steps:
+      - name: 📋 Generate test summary
+        run: |
+          echo "# 🧪 Test Results Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| Test Suite | Status |" >> $GITHUB_STEP_SUMMARY
+          echo "|------------|--------|" >> $GITHUB_STEP_SUMMARY
+          echo "| Code Quality | ${{ needs.code-quality.result == 'success' && '✅ Passed' || '❌ Failed' }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| CDK Tests | ${{ needs.cdk-tests.result == 'success' && '✅ Passed' || '❌ Failed' }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Unit Tests | ${{ needs.unit-tests.result == 'success' && '✅ Passed' || '❌ Failed' }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Integration Tests | ${{ needs.integration-tests.result == 'success' && '✅ Passed' || '❌ Failed' }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Cross-browser Tests | ${{ needs.cross-browser-tests.result == 'success' && '✅ Passed' || '❌ Failed' }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Security & Performance | ${{ needs.security-performance.result == 'success' && '✅ Passed' || '❌ Failed' }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Build Validation | ${{ needs.build-validation.result == 'success' && '✅ Passed' || '❌ Failed' }} |" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          
+          if [[ "${{ needs.code-quality.result }}" == "success" && 
+                "${{ needs.cdk-tests.result }}" == "success" && 
+                "${{ needs.unit-tests.result }}" == "success" && 
+                "${{ needs.integration-tests.result }}" == "success" && 
+                "${{ needs.cross-browser-tests.result }}" == "success" && 
+                "${{ needs.security-performance.result }}" == "success" && 
+                "${{ needs.build-validation.result }}" == "success" ]]; then
+            echo "## 🎉 All tests passed! Ready for deployment." >> $GITHUB_STEP_SUMMARY
+          else
+            echo "## ❌ Some tests failed. Please review before deployment." >> $GITHUB_STEP_SUMMARY
+          fi
