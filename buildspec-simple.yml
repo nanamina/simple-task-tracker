@@ -1,0 +1,37 @@
+version: 0.2
+
+env:
+  variables:
+    NODE_VERSION: "20"
+    AWS_DEFAULT_REGION: "us-west-2"
+
+phases:
+  install:
+    runtime-versions:
+      nodejs: 20
+    commands:
+      - echo "🚀 Starting Simple Task Tracker build..."
+      - npm install -g aws-cdk@latest
+      - npm ci
+      - cd cdk && npm ci && cd ..
+      - npx playwright install --with-deps
+
+  pre_build:
+    commands:
+      - echo "🔍 Running tests..."
+      - node -c task-tracker-script.js
+      - cd cdk && npm run build && npm test && cd ..
+      - npm run test:unit
+      - npm run test:ui
+
+  build:
+    commands:
+      - echo "🚀 Deploying to AWS..."
+      - cd cdk
+      - cdk bootstrap --require-approval never || echo "Bootstrap already exists"
+      - cdk deploy --require-approval never -c environment=production
+      - cd ..
+
+  post_build:
+    commands:
+      - echo "✅ Build completed!"
