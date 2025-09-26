@@ -17,14 +17,3 @@ A clear and concise description of any alternative solutions or features you've 
 
 **Additional context**
 Add any other context or screenshots about the feature request here.
-
-**Implementation considerations**
-- Would this require UI changes?
-- Should this be configurable by users?
-- Are there accessibility considerations?
-- Would this affect mobile/desktop differently?
-
-**Priority**
-- [ ] Low - Nice to have
-- [ ] Medium - Would improve user experience
-- [ ] High - Critical for usability

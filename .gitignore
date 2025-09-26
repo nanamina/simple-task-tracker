@@ -55,8 +55,8 @@ deploy*.log
 tmp/
 temp/
 
-# Backup and archive files
-bkup/
+# Backup and archive files (keep bkup/ for now, will archive separately)
+# bkup/
 backup/
 *.bak
 *.backup
@@ -78,3 +78,23 @@ playwright-report/
 
 # GitHub Actions artifacts (local)
 .github-actions/
+
+# AWS CodeBuild/CodeDeploy artifacts
+codebuild-artifacts/
+codedeploy-artifacts/
+.aws-sam/
+
+# Archive files for GitHub preparation
+*.tar.gz
+*.zip
+archive/
+bkup/
+
+# Temporary deployment and configuration files
+deploy-*.sh
+fix-*.sh
+setup-*.sh
+*-project.json
+codebuild-project.json
+permissions-policy.json
+role-policy.json

@@ -45,7 +45,8 @@
 ### 📚 詳細ガイド
 - **アプリ使用方法**: `README-simple-task-tracker.md`
 - **AWS デプロイ**: `DEPLOYMENT.md`
-- **CI/CD パイプライン**: `README-CICD.md`
+- **GitHub Actions CI/CD**: `README-CICD.md`
+- **AWS CodeBuild CI/CD**: `README-AWS-CICD.md`
 
 ### ☁️ AWS デプロイ
 ```bash
@@ -57,8 +58,10 @@
 ```
 
 ### 🔄 CI/CD セットアップ
+
+#### GitHub Actions (推奨: 簡単セットアップ)
 ```bash
-# CI/CD パイプラインセットアップ
+# GitHub Actions パイプラインセットアップ
 ./setup-cicd.sh
 
 # 設定検証
@@ -66,6 +69,18 @@
 
 # ローカルテスト実行
 ./setup-cicd.sh test
+```
+
+#### AWS CodeBuild/CodePipeline (推奨: AWS ネイティブ)
+```bash
+# AWS CI/CD パイプラインセットアップ
+./setup-aws-cicd.sh setup -o YOUR_GITHUB_USERNAME
+
+# GitHub準備
+./setup-aws-cicd.sh github
+
+# 設定検証
+./setup-aws-cicd.sh validate
 ```
 
 ### 🧪 テスト実行

@@ -26,12 +26,6 @@ If applicable, add screenshots to help explain your problem.
 - Browser [e.g. chrome, safari]
 - Version [e.g. 22]
 - Device [e.g. iPhone6, Desktop]
-- OS [e.g. iOS, Windows, macOS]
 
 **Additional context**
 Add any other context about the problem here.
-
-**Task Tracker Specific:**
-- Were you adding, editing, or deleting a task?
-- What was the task content (if relevant)?
-- Did the issue occur on page load or during interaction?

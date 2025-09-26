@@ -1,0 +1,232 @@
+version: 0.2
+
+# AWS CodeBuild buildspec for Simple Task Tracker
+# This file defines the build process for the CI/CD pipeline
+
+env:
+  variables:
+    NODE_VERSION: "20"
+    AWS_DEFAULT_REGION: "us-west-2"
+  parameter-store:
+    # Store sensitive values in AWS Systems Manager Parameter Store
+    # /simple-task-tracker/github-token: GitHub personal access token (if needed)
+  
+phases:
+  install:
+    runtime-versions:
+      nodejs: 20
+    commands:
+      - echo "🚀 Starting Simple Task Tracker build process..."
+      - echo "Build started on `date`"
+      - echo "Node.js version:"
+      - node --version
+      - npm --version
+      
+      # Install AWS CDK CLI
+      - echo "📦 Installing AWS CDK CLI..."
+      - npm install -g aws-cdk@latest
+      - cdk --version
+      
+      # Install project dependencies
+      - echo "📦 Installing project dependencies..."
+      - npm ci
+      
+      # Install CDK dependencies
+      - echo "📦 Installing CDK dependencies..."
+      - cd cdk && npm ci && cd ..
+      
+      # Install Playwright browsers for testing
+      - echo "🎭 Installing Playwright browsers..."
+      - npx playwright install --with-deps
+
+  pre_build:
+    commands:
+      - echo "🔍 Pre-build phase started on `date`"
+      
+      # Code quality checks
+      - echo "🔍 Running code quality checks..."
+      - node -c task-tracker-script.js
+      - echo "✅ JavaScript syntax check passed"
+      
+      # Check required files
+      - echo "📁 Checking required files..."
+      - test -f simple-task-tracker-standalone.html || (echo "❌ Missing standalone HTML" && exit 1)
+      - test -f task-tracker-script.js || (echo "❌ Missing JavaScript file" && exit 1)
+      - test -f task-tracker-styles.css || (echo "❌ Missing CSS file" && exit 1)
+      - echo "✅ All required files present"
+      
+      # CDK build and test
+      - echo "🏗️ Building and testing CDK..."
+      - cd cdk
+      - npm run build
+      - npm test
+      - npx cdk synth --quiet > /dev/null
+      - echo "✅ CDK build and tests passed"
+      - cd ..
+      
+      # Run unit tests
+      - echo "🧪 Running unit tests..."
+      - npm run test:unit
+      - echo "✅ Unit tests passed"
+      
+      # Run UI tests
+      - echo "🎭 Running UI tests..."
+      - npm run test:ui
+      - echo "✅ UI tests passed"
+      
+      # Run accessibility tests
+      - echo "♿ Running accessibility tests..."
+      - npm run test:accessibility
+      - echo "✅ Accessibility tests passed"
+      
+      # Security audit
+      - echo "🔒 Running security audit..."
+      - npm audit --audit-level=moderate || echo "⚠️ Security vulnerabilities found (non-blocking)"
+      - cd cdk && npm audit --audit-level=moderate || echo "⚠️ CDK security vulnerabilities found (non-blocking)"
+      - cd ..
+
+  build:
+    commands:
+      - echo "🔨 Build phase started on `date`"
+      
+      # Determine environment from branch or CodeBuild environment
+      - |
+        if [ "$CODEBUILD_WEBHOOK_HEAD_REF" = "refs/heads/main" ]; then
+          export DEPLOY_ENV="production"
+        elif [ "$CODEBUILD_WEBHOOK_HEAD_REF" = "refs/heads/develop" ]; then
+          export DEPLOY_ENV="staging"
+        else
+          export DEPLOY_ENV="dev"
+        fi
+      - echo "🎯 Deployment environment: $DEPLOY_ENV"
+      
+      # Build CDK
+      - echo "🏗️ Building CDK for deployment..."
+      - cd cdk
+      - npm run build
+      - cd ..
+      
+      # Create deployment package
+      - echo "📦 Creating deployment package..."
+      - mkdir -p deployment-package
+      - cp simple-task-tracker-standalone.html deployment-package/
+      - cp simple-task-tracker.html deployment-package/
+      - cp task-tracker-script.js deployment-package/
+      - cp task-tracker-styles.css deployment-package/
+      - cp -r cdk deployment-package/
+      - cp deploy-aws.sh deployment-package/
+      
+      # Create build info
+      - echo "📋 Creating build information..."
+      - echo "Build Date: $(date)" > deployment-package/build-info.txt
+      - echo "Build ID: $CODEBUILD_BUILD_ID" >> deployment-package/build-info.txt
+      - echo "Source Version: $CODEBUILD_SOURCE_VERSION" >> deployment-package/build-info.txt
+      - echo "Environment: $DEPLOY_ENV" >> deployment-package/build-info.txt
+      
+      # Deploy using CDK
+      - echo "🚀 Deploying to AWS..."
+      - cd deployment-package/cdk
+      
+      # Bootstrap CDK if needed
+      - |
+        if ! aws cloudformation describe-stacks --stack-name CDKToolkit --region $AWS_DEFAULT_REGION >/dev/null 2>&1; then
+          echo "🏗️ Bootstrapping CDK..."
+          cdk bootstrap
+        fi
+      
+      # Deploy the stack
+      - cdk deploy --require-approval never -c environment=$DEPLOY_ENV
+      
+      # Get deployment outputs
+      - |
+        WEBSITE_URL=$(aws cloudformation describe-stacks \
+          --stack-name SimpleTaskTrackerStack \
+          --region $AWS_DEFAULT_REGION \
+          --query 'Stacks[0].Outputs[?OutputKey==`WebsiteURL`].OutputValue' \
+          --output text 2>/dev/null || echo "")
+        
+        DISTRIBUTION_ID=$(aws cloudformation describe-stacks \
+          --stack-name SimpleTaskTrackerStack \
+          --region $AWS_DEFAULT_REGION \
+          --query 'Stacks[0].Outputs[?OutputKey==`DistributionId`].OutputValue' \
+          --output text 2>/dev/null || echo "")
+        
+        echo "🌐 Website URL: $WEBSITE_URL"
+        echo "🔗 Distribution ID: $DISTRIBUTION_ID"
+        
+        # Save outputs for post-build
+        echo "$WEBSITE_URL" > ../website-url.txt
+        echo "$DISTRIBUTION_ID" > ../distribution-id.txt
+      
+      - cd ../..
+
+  post_build:
+    commands:
+      - echo "✅ Post-build phase started on `date`"
+      
+      # Read deployment outputs
+      - |
+        if [ -f "deployment-package/website-url.txt" ]; then
+          WEBSITE_URL=$(cat deployment-package/website-url.txt)
+          DISTRIBUTION_ID=$(cat deployment-package/distribution-id.txt)
+          
+          echo "🌐 Deployed Website URL: $WEBSITE_URL"
+          echo "🔗 CloudFront Distribution ID: $DISTRIBUTION_ID"
+          
+          # Wait for deployment to be ready
+          echo "⏳ Waiting for deployment to be ready..."
+          sleep 60
+          
+          # Run smoke tests
+          if [ -n "$WEBSITE_URL" ]; then
+            echo "🧪 Running smoke tests..."
+            
+            # Test HTTP status
+            HTTP_STATUS=$(curl -s -o /dev/null -w "%{http_code}" "$WEBSITE_URL" || echo "000")
+            if [ "$HTTP_STATUS" = "200" ]; then
+              echo "✅ HTTP status check passed (200)"
+            else
+              echo "❌ HTTP status check failed ($HTTP_STATUS)"
+              exit 1
+            fi
+            
+            # Test content
+            if curl -s "$WEBSITE_URL" | grep -q "Simple Task Tracker"; then
+              echo "✅ Content verification passed"
+            else
+              echo "❌ Content verification failed"
+              exit 1
+            fi
+            
+            # Test response time
+            RESPONSE_TIME=$(curl -s -o /dev/null -w "%{time_total}" "$WEBSITE_URL")
+            echo "⏱️ Response time: ${RESPONSE_TIME}s"
+            
+            echo "✅ All smoke tests passed!"
+          fi
+        fi
+      
+      - echo "🎉 Build completed successfully on `date`"
+
+artifacts:
+  files:
+    - deployment-package/**/*
+    - build-info.txt
+  name: simple-task-tracker-$(date +%Y-%m-%d-%H-%M-%S)
+  
+reports:
+  jest-reports:
+    files:
+      - 'cdk/coverage/clover.xml'
+    file-format: 'CLOVERXML'
+  playwright-reports:
+    files:
+      - 'test-results/**/*'
+    file-format: 'JUNITXML'
+
+cache:
+  paths:
+    - 'node_modules/**/*'
+    - 'cdk/node_modules/**/*'
+    - '/root/.npm/**/*'
+    - '/root/.cache/ms-playwright/**/*'
